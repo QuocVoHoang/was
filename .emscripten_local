@@ -1,0 +1,7 @@
+import os
+NODE_JS = os.path.realpath('/Users/vohoangquoc/WASM/../emsdk/node/22.16.0_64bit/bin/node').replace('\\', '/')
+PYTHON = os.path.realpath('/Users/vohoangquoc/WASM/../emsdk/python/3.13.3_64bit/bin/python3').replace('\\', '/')
+LLVM_ROOT = os.path.realpath('/Users/vohoangquoc/WASM/../emsdk/upstream/bin').replace('\\', '/')
+BINARYEN_ROOT = os.path.realpath('/Users/vohoangquoc/WASM/../emsdk/upstream').replace('\\', '/')
+EMSCRIPTEN_ROOT = os.path.realpath('/Users/vohoangquoc/WASM/../emsdk/upstream/emscripten').replace('\\', '/')
+CACHE = os.path.realpath('/Users/vohoangquoc/WASM/.em_cache').replace('\\', '/')
