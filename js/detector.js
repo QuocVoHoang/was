@@ -1,7 +1,8 @@
 // js_motion.js
 let prevFrameGray = null;
 
-function processMotionJS(imageData, width, height, threshold = 30) {
+// Thêm tham số radius (mặc định là 1 để giữ nguyên bản gốc là ma trận 3x3)
+function processMotionJS(imageData, width, height, threshold = 30, radius = 1) {
     const data = imageData.data;
     const numPixels = width * height;
     
@@ -12,26 +13,29 @@ function processMotionJS(imageData, width, height, threshold = 30) {
         currentFrameGray[pixelIndex++] = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
     }
 
-    // 2. BƯỚC NẶNG: Box Blur 3x3 (Làm mờ để khử nhiễu)
+    // 2. BƯỚC NẶNG: Box Blur với custom radius
     const blurredGray = new Uint8ClampedArray(numPixels);
     
-    // Bỏ qua viền ngoài cùng để tránh lỗi out-of-bounds
-    for (let y = 1; y < height - 1; y++) {
-        for (let x = 1; x < width - 1; x++) {
+    // Tính tổng số pixel trong ma trận blur dựa vào radius
+    const blurMatrixSide = radius * 2 + 1;
+    const numBlurPixels = blurMatrixSide * blurMatrixSide;
+    
+    // Bỏ qua viền ngoài cùng dựa trên kích thước radius để tránh lỗi out-of-bounds
+    for (let y = radius; y < height - radius; y++) {
+        for (let x = radius; x < width - radius; x++) {
             let sum = 0;
             
-            // Duyệt ma trận 3x3 xung quanh pixel hiện tại
-            for (let ky = -1; ky <= 1; ky++) {
-                for (let kx = -1; kx <= 1; kx++) {
-                    // Tính chỉ số (index) của pixel lân cận trong mảng 1 chiều
+            // Duyệt ma trận xung quanh pixel hiện tại mở rộng theo radius
+            for (let ky = -radius; ky <= radius; ky++) {
+                for (let kx = -radius; kx <= radius; kx++) {
                     const neighborIndex = ((y + ky) * width) + (x + kx);
                     sum += currentFrameGray[neighborIndex];
                 }
             }
             
-            // Lấy trung bình cộng của 9 pixel
+            // Lấy trung bình cộng dựa trên tổng số pixel của ma trận
             const centerIndex = y * width + x;
-            blurredGray[centerIndex] = sum / 9;
+            blurredGray[centerIndex] = sum / numBlurPixels;
         }
     }
 
@@ -41,7 +45,6 @@ function processMotionJS(imageData, width, height, threshold = 30) {
 
     for (let i = 0; i < data.length; i += 4) {
         if (prevFrameGray) {
-            // So sánh dựa trên ảnh đã làm mờ
             const diff = Math.abs(blurredGray[pixelIndex] - prevFrameGray[pixelIndex]);
             
             if (diff > threshold) {
