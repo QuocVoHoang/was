@@ -11,59 +11,13 @@ const runtimeStatus = document.createElement('div');
 const metricsContainer = document.createElement('div');
 const latencyMetric = document.createElement('div');
 const fpsMetric = document.createElement('div');
-const cpuMetric = document.createElement('div');
-const chartContainer = document.createElement('div');
-const maxChartPoints = 180;
 
-// TẠO CANVAS ẨN (Không đưa vào DOM) để trích xuất pixel
+// TẠO CANVAS ẨN để trích xuất pixel
 const hiddenCanvas = document.createElement('canvas');
 const ctxHidden = hiddenCanvas.getContext('2d', { willReadFrequently: true });
 
 // Context của Canvas hiển thị
 const ctxOutput = outputCanvas.getContext('2d');
-
-function createChart(title, color, unit, fixedMax = null) {
-    const wrapper = document.createElement('div');
-    const label = document.createElement('div');
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
-
-    wrapper.style.width = 'min(100%, 800px)';
-    wrapper.style.background = '#2b2b2b';
-    wrapper.style.border = '1px solid #444';
-    wrapper.style.borderRadius = '10px';
-    wrapper.style.padding = '12px';
-    wrapper.style.boxSizing = 'border-box';
-
-    label.innerText = title;
-    label.style.fontFamily = 'monospace';
-    label.style.fontSize = '0.95em';
-    label.style.fontWeight = 'bold';
-    label.style.color = color;
-    label.style.marginBottom = '8px';
-
-    canvas.width = 800;
-    canvas.height = 160;
-    canvas.style.width = '100%';
-    canvas.style.height = '160px';
-    canvas.style.display = 'block';
-    canvas.style.background = '#181818';
-    canvas.style.border = '1px solid #333';
-    canvas.style.borderRadius = '8px';
-
-    wrapper.append(label, canvas);
-
-    return {
-        title,
-        color,
-        unit,
-        fixedMax,
-        wrapper,
-        canvas,
-        context,
-        history: []
-    };
-}
 
 let isProcessingJS = false;
 let lastFpsTime = performance.now();
@@ -73,11 +27,8 @@ let currentProcessor = 'js';
 let lastFrameTimestamp = null;
 let latestLatency = 0;
 let latestFps = 0;
-let latestCpuUsage = 0;
-const latencyChart = createChart('Frame Processing Latency', '#ff9f1c', 'ms');
-const fpsChart = createChart('FPS', '#00d1ff', 'fps');
-const cpuChart = createChart('CPU usage (estimated)', '#7ae582', '%', 100);
 
+// Thiết lập UI cho các trạng thái và chỉ số (Text only)
 motionStatus.id = 'motionStatus';
 motionStatus.className = 'stats';
 motionStatus.style.fontSize = '1.1em';
@@ -99,7 +50,7 @@ metricsContainer.style.gap = '12px';
 metricsContainer.style.width = 'min(100%, 800px)';
 metricsContainer.style.margin = '10px 0 18px';
 
-[latencyMetric, fpsMetric, cpuMetric].forEach((metric) => {
+[latencyMetric, fpsMetric].forEach((metric) => {
     metric.className = 'stats';
     metric.style.fontSize = '1em';
     metric.style.margin = '0';
@@ -109,129 +60,22 @@ metricsContainer.style.margin = '10px 0 18px';
     metric.style.borderRadius = '8px';
 });
 
-metricsContainer.append(latencyMetric, fpsMetric, cpuMetric);
+metricsContainer.append(latencyMetric, fpsMetric);
 runtimeStatus.insertAdjacentElement('afterend', metricsContainer);
 
-chartContainer.id = 'chartContainer';
-chartContainer.style.display = 'grid';
-chartContainer.style.gap = '12px';
-chartContainer.style.width = '100%';
-chartContainer.style.marginTop = '18px';
-chartContainer.append(latencyChart.wrapper, fpsChart.wrapper, cpuChart.wrapper);
-outputCanvas.insertAdjacentElement('afterend', chartContainer);
-
-function trimHistory(history) {
-    if (history.length > maxChartPoints) {
-        history.splice(0, history.length - maxChartPoints);
-    }
-}
-
-function getChartMaxValue(chart) {
-    if (chart.fixedMax !== null) {
-        return chart.fixedMax;
-    }
-
-    const observedMax = Math.max(...chart.history, 1);
-    return observedMax * 1.15;
-}
-
-function drawChart(chart) {
-    const { context, canvas, color, title, unit, history } = chart;
-    const width = canvas.width;
-    const height = canvas.height;
-    const padding = 28;
-    const plotWidth = width - padding * 2;
-    const plotHeight = height - padding * 2;
-    const maxValue = getChartMaxValue(chart);
-
-    context.clearRect(0, 0, width, height);
-    context.fillStyle = '#181818';
-    context.fillRect(0, 0, width, height);
-
-    context.strokeStyle = '#2f2f2f';
-    context.lineWidth = 1;
-    for (let i = 0; i <= 4; i++) {
-        const y = padding + (plotHeight / 4) * i;
-        context.beginPath();
-        context.moveTo(padding, y);
-        context.lineTo(width - padding, y);
-        context.stroke();
-    }
-
-    context.strokeStyle = '#555';
-    context.beginPath();
-    context.moveTo(padding, padding);
-    context.lineTo(padding, height - padding);
-    context.lineTo(width - padding, height - padding);
-    context.stroke();
-
-    context.fillStyle = '#cfcfcf';
-    context.font = '12px monospace';
-    context.fillText(`max ${maxValue.toFixed(1)} ${unit}`, padding, 16);
-
-    if (history.length > 0) {
-        const currentValue = history[history.length - 1];
-        const label = `${title}: ${currentValue.toFixed(1)} ${unit}`;
-        const textWidth = context.measureText(label).width;
-        context.fillText(label, width - padding - textWidth, 16);
-
-        context.strokeStyle = color;
-        context.lineWidth = 2;
-        context.beginPath();
-
-        history.forEach((value, index) => {
-            const x = padding + (plotWidth * index) / Math.max(history.length - 1, 1);
-            const y = height - padding - (Math.min(value, maxValue) / maxValue) * plotHeight;
-
-            if (index === 0) {
-                context.moveTo(x, y);
-            } else {
-                context.lineTo(x, y);
-            }
-        });
-
-        context.stroke();
-        return;
-    }
-
-    context.fillStyle = '#888';
-    context.font = '13px monospace';
-    context.fillText('Dang cho du lieu...', padding, height / 2);
-}
-
-function resetCharts() {
-    [latencyChart, fpsChart, cpuChart].forEach((chart) => {
-        chart.history.length = 0;
-        drawChart(chart);
-    });
-}
-
-function updateCharts() {
-    latencyChart.history.push(latestLatency);
-    fpsChart.history.push(latestFps);
-    cpuChart.history.push(latestCpuUsage);
-
-    [latencyChart, fpsChart, cpuChart].forEach((chart) => {
-        trimHistory(chart.history);
-        drawChart(chart);
-    });
-}
+// --- CÁC HÀM LOGIC ĐÃ LOẠI BỎ CHART ---
 
 function resetMetrics() {
     lastFrameTimestamp = null;
     latestLatency = 0;
     latestFps = 0;
-    latestCpuUsage = 0;
     latencyMetric.innerText = 'Frame Processing Latency: -- ms';
     fpsMetric.innerText = 'FPS: --';
-    cpuMetric.innerText = 'CPU usage (estimated): -- %';
-    resetCharts();
 }
 
 function updateMetricsDisplay() {
     latencyMetric.innerText = `Frame Processing Latency: ${latestLatency.toFixed(2)} ms`;
     fpsMetric.innerText = `FPS: ${latestFps.toFixed(1)}`;
-    cpuMetric.innerText = `CPU usage (estimated): ${latestCpuUsage.toFixed(1)} %`;
 }
 
 function resetMotionState() {
@@ -337,11 +181,8 @@ videoUpload.addEventListener('change', (e) => {
         videoPlayer.src = url;
         
         videoPlayer.onloadedmetadata = () => {
-            // Gán kích thước thật của video cho Canvas ẩn
             hiddenCanvas.width = videoPlayer.videoWidth;
             hiddenCanvas.height = videoPlayer.videoHeight;
-            
-            // Gán kích thước cho Canvas đầu ra
             outputCanvas.width = videoPlayer.videoWidth;
             outputCanvas.height = videoPlayer.videoHeight;
             
@@ -356,21 +197,13 @@ videoUpload.addEventListener('change', (e) => {
     }
 });
 
-btnRunJS.addEventListener('click', () => {
-    startProcessing('js');
-});
+btnRunJS.addEventListener('click', () => startProcessing('js'));
+btnRunWASM.addEventListener('click', () => startProcessing('wasm'));
 
-btnRunWASM.addEventListener('click', () => {
-    startProcessing('wasm');
-});
-
-// Thêm sự kiện cho nút DỪNG
 btnStop.addEventListener('click', () => {
-    isProcessingJS = false;     // Dừng vòng lặp requestAnimationFrame
-    videoPlayer.pause();        // Tạm dừng video
-    
+    isProcessingJS = false;
+    videoPlayer.pause();
     setProcessingButtons(false);
-    
     fpsCounter.innerText = "Đã dừng xử lý.";
     motionStatus.innerText = 'Trạng thái chuyển động: Đã dừng';
     motionStatus.style.color = '#ffd166';
@@ -381,13 +214,9 @@ btnStop.addEventListener('click', () => {
 function processVideo() {
     if (videoPlayer.paused || videoPlayer.ended || !isProcessingJS) return;
 
-    // 1. Vẽ frame hiện tại lên Canvas ẩn (Người dùng không thấy bước này)
     ctxHidden.drawImage(videoPlayer, 0, 0, hiddenCanvas.width, hiddenCanvas.height);
-
-    // 2. Lấy mảng dữ liệu pixel (bước tốn chi phí đọc bộ nhớ)
     const imageData = ctxHidden.getImageData(0, 0, hiddenCanvas.width, hiddenCanvas.height);
 
-    // Bắt đầu đo thời gian thuật toán chạy
     const startProcessTime = performance.now();
     
     let processedFrame;
@@ -409,19 +238,15 @@ function processVideo() {
         };
     }
     
-    // Kết thúc đo thời gian thuật toán
     const endProcessTime = performance.now();
-    const processDuration = endProcessTime - startProcessTime;
-    latestLatency = processDuration;
+    latestLatency = endProcessTime - startProcessTime;
 
     const totalPixels = hiddenCanvas.width * hiddenCanvas.height;
     const hasMotion = processedFrame.changedPixels > totalPixels * motionPixelRatioThreshold;
     updateMotionStatus(hasMotion, processedFrame.changedPixels, totalPixels);
 
-    // 4. In mảng kết quả ra Canvas hiển thị
     ctxOutput.putImageData(processedFrame.processedData, 0, 0);
 
-    // 5. Tính toán và hiển thị FPS
     frameCount++;
     const currentTime = performance.now();
     const frameInterval = lastFrameTimestamp === null ? 0 : currentTime - lastFrameTimestamp;
@@ -429,20 +254,15 @@ function processVideo() {
 
     if (frameInterval > 0) {
         latestFps = 1000 / frameInterval;
-        latestCpuUsage = Math.min(100, (processDuration / frameInterval) * 100);
     }
 
     updateMetricsDisplay();
-    updateCharts();
     
-    // Cập nhật text mỗi giây (1000ms)
     if (currentTime - lastFpsTime >= 1000) {
-        fpsCounter.innerText = `Mode: ${getProcessorLabel()} | FPS trung bình: ${frameCount}`;
         frameCount = 0;
         lastFpsTime = currentTime;
     }
 
-    // Lặp lại liên tục theo tốc độ quét của màn hình
     requestAnimationFrame(processVideo);
 }
 
