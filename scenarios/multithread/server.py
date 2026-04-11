@@ -34,7 +34,7 @@ if __name__ == '__main__':
     directory = sys.argv[2] if len(sys.argv) > 2 else '.'
 
     os.chdir(directory)
-    httpd = HTTPServer(('', port), COOPCOEPHandler)
+    httpd = HTTPServer(('localhost', port), COOPCOEPHandler)
 
     print(f"🚀 Serving on http://localhost:{port}")
     print(f"   COOP/COEP headers enabled (SharedArrayBuffer support)")

@@ -79,18 +79,8 @@ metricsContainer.style.margin = '10px';
     metric.style.borderRadius = '8px';
 });
 
-metricsContainer.append(latencyMetric, fpsMetric);
-runtimeStatus.insertAdjacentElement('afterend', metricsContainer);
 
 // --- HELPER FUNCTIONS ---
-
-function resetMetrics() {
-    lastFrameTimestamp = null;
-    latestLatency = 0;
-    latencyMetric.innerText = 'Frame Processing Latency: -- ms';
-    fpsMetric.innerText = 'FPS: --';
-}
-
 function resetBenchmarkCollectors() {
     frameLatencies = [];
     frameFpsSamples = [];
@@ -106,8 +96,6 @@ function resetMotionState() {
     if (window.wasmMotion) {
         window.wasmMotion.reset();
     }
-
-    resetMetrics();
 }
 
 function updateRuntimeStatus() {
@@ -290,7 +278,6 @@ videoUpload.addEventListener('change', (e) => {
             motionStatus.innerText = 'Trạng thái chuyển động: Chưa xử lý';
             motionStatus.style.color = '#ffd166';
             updateRuntimeStatus();
-            resetMetrics();
         };
 
         resetMotionState();
@@ -313,7 +300,6 @@ btnStop.addEventListener('click', () => {
     fpsCounter.style.color = '#00ffcc';
     motionStatus.innerText = 'Trạng thái chuyển động: Đã dừng';
     motionStatus.style.color = '#ffd166';
-    resetMetrics();
 
     if (benchmarkMode) {
         benchmarkMode = false;
@@ -540,5 +526,4 @@ function renderComparisonTable() {
 }
 
 // --- INIT ---
-resetMetrics();
 updateRuntimeStatus();
