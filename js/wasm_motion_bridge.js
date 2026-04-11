@@ -20,7 +20,7 @@ window.wasmMotion = {
             };
 
             const script = document.createElement('script');
-            script.src = 'motion_wasm.js';
+            script.src = 'build/motion_wasm.js';
             script.async = true;
             script.onerror = () => {
                 this.status = 'error';

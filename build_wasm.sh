@@ -39,12 +39,12 @@ EMSCRIPTEN_ROOT = os.path.realpath('$EMSDK_DIR/upstream/emscripten').replace('\\
 CACHE = os.path.realpath('$EM_CACHE_DIR').replace('\\\\', '/')
 EOF
 
-"$EMCC_BIN" motion_wasm.cpp \
+"$EMCC_BIN" cpp/motion_wasm.cpp \
     -O3 \
     -s WASM=1 \
     -s ALLOW_MEMORY_GROWTH=1 \
     -s EXPORTED_FUNCTIONS='["_malloc","_free","_processMotion","_resetMotionDetector","_getChangedPixelCount"]' \
     -s EXPORTED_RUNTIME_METHODS='["HEAPU8"]' \
-    -o motion_wasm.js
+    -o build/motion_wasm.js
 
-echo "Build done: motion_wasm.js and motion_wasm.wasm"
+echo "Build done: build/motion_wasm.js and build/motion_wasm.wasm"

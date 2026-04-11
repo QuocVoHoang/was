@@ -1,6 +1,5 @@
-video4k/sample_1.mp4
-video4k/sample_2.mp4
-video4k/sample_3.mp4
-motion_wasm.js
-motion_wasm.wasm
+video4k/
+build/
 .em_cache/
+.emscripten_local
+.DS_Store
