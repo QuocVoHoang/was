@@ -1,12 +1,16 @@
 // app.js
+
+// --- DOM REFERENCES ---
 const videoUpload = document.getElementById('videoUpload');
 const videoPlayer = document.getElementById('videoPlayer');
 const outputCanvas = document.getElementById('outputCanvas');
-const btnRunJS = document.getElementById('btnRunJS');
-const btnRunWASM = document.getElementById('btnRunWASM');
+const btnBenchmark = document.getElementById('btnBenchmark');
 const fpsCounter = document.getElementById('fpsCounter');
-fpsCounter.style.margin = '10px'
+fpsCounter.style.margin = '10px';
 const btnStop = document.getElementById('btnStop');
+const comparisonContainer = document.getElementById('comparisonContainer');
+
+// Dynamic UI elements
 const motionStatus = document.createElement('div');
 const runtimeStatus = document.createElement('div');
 const metricsContainer = document.createElement('div');
@@ -20,22 +24,34 @@ const ctxHidden = hiddenCanvas.getContext('2d', { willReadFrequently: true });
 // Context của Canvas hiển thị
 const ctxOutput = outputCanvas.getContext('2d');
 
-let isProcessingJS = false;
-let lastFpsTime = performance.now();
-let frameCount = 0;
-const motionPixelRatioThreshold = 0.003;
+// --- STATE ---
+let isProcessing = false;
 let currentProcessor = 'js';
 let lastFrameTimestamp = null;
 let latestLatency = 0;
-let latestFps = 0;
+const MOTION_PIXEL_RATIO_THRESHOLD = 0.003;
 
-// Thiết lập UI cho các trạng thái và chỉ số (Text only)
+// --- BENCHMARK CONFIG ---
+const BENCHMARK_DURATION_MS = 10000; // 10 giây mỗi thuật toán
+
+// --- BENCHMARK STATE ---
+let benchmarkMode = false;
+let benchmarkPhase = null;       // 'js' | 'wasm'
+let benchmarkResults = { js: null, wasm: null };
+let frameLatencies = [];
+let frameFpsSamples = [];
+let benchmarkStartTime = 0;
+let totalBenchmarkFrames = 0;
+let benchmarkTimer = null;
+
+// --- THIẾT LẬP UI ---
+
 motionStatus.id = 'motionStatus';
 motionStatus.className = 'stats';
 motionStatus.style.fontSize = '1.1em';
 motionStatus.style.color = '#ffd166';
 motionStatus.innerText = 'Trạng thái chuyển động: Chưa xử lý';
-motionStatus.style.margin = '10px'
+motionStatus.style.margin = '10px';
 fpsCounter.insertAdjacentElement('afterend', motionStatus);
 
 runtimeStatus.id = 'runtimeStatus';
@@ -43,7 +59,7 @@ runtimeStatus.className = 'stats';
 runtimeStatus.style.fontSize = '1em';
 runtimeStatus.style.color = '#9ad1ff';
 runtimeStatus.innerText = 'Runtime: JavaScript sẵn sàng | WASM: đang chờ build';
-runtimeStatus.style.margin = '10px'
+runtimeStatus.style.margin = '10px';
 motionStatus.insertAdjacentElement('afterend', runtimeStatus);
 
 metricsContainer.id = 'metricsContainer';
@@ -66,19 +82,20 @@ metricsContainer.style.margin = '10px';
 metricsContainer.append(latencyMetric, fpsMetric);
 runtimeStatus.insertAdjacentElement('afterend', metricsContainer);
 
-// --- CÁC HÀM LOGIC ĐÃ LOẠI BỎ CHART ---
+// --- HELPER FUNCTIONS ---
 
 function resetMetrics() {
     lastFrameTimestamp = null;
     latestLatency = 0;
-    latestFps = 0;
     latencyMetric.innerText = 'Frame Processing Latency: -- ms';
     fpsMetric.innerText = 'FPS: --';
 }
 
-function updateMetricsDisplay() {
-    latencyMetric.innerText = `Frame Processing Latency: ${latestLatency.toFixed(2)} ms`;
-    fpsMetric.innerText = `FPS: ${latestFps.toFixed(1)}`;
+function resetBenchmarkCollectors() {
+    frameLatencies = [];
+    frameFpsSamples = [];
+    totalBenchmarkFrames = 0;
+    benchmarkStartTime = performance.now();
 }
 
 function resetMotionState() {
@@ -91,19 +108,6 @@ function resetMotionState() {
     }
 
     resetMetrics();
-}
-
-function updateMotionStatus(hasMotion, changedPixels, totalPixels) {
-    const motionPercent = totalPixels === 0 ? 0 : (changedPixels / totalPixels) * 100;
-
-    if (hasMotion) {
-        motionStatus.innerText = `Trạng thái chuyển động: Có chuyển động (${motionPercent.toFixed(2)}% pixel thay đổi)`;
-        motionStatus.style.color = '#ff6b6b';
-        return;
-    }
-
-    motionStatus.innerText = `Trạng thái chuyển động: Không có chuyển động (${motionPercent.toFixed(2)}% pixel thay đổi)`;
-    motionStatus.style.color = '#7ae582';
 }
 
 function updateRuntimeStatus() {
@@ -135,46 +139,138 @@ function updateRuntimeStatus() {
     runtimeStatus.style.color = '#ff9f1c';
 }
 
-function getProcessorLabel() {
-    return currentProcessor === 'wasm' ? 'WASM' : 'JavaScript';
-}
-
 function setProcessingButtons(isRunning) {
-    btnRunJS.disabled = isRunning;
-    btnRunWASM.disabled = isRunning;
+    btnBenchmark.disabled = isRunning;
     btnStop.disabled = !isRunning;
 }
 
-async function startProcessing(processorType) {
+/**
+ * Seek video về đầu rồi gọi callback.
+ * Fix: nếu currentTime đã là 0, seeked event không fire → gọi trực tiếp.
+ */
+function seekToStartAndRun(callback) {
+    if (videoPlayer.currentTime < 0.01) {
+        callback();
+    } else {
+        videoPlayer.currentTime = 0;
+        videoPlayer.addEventListener('seeked', callback, { once: true });
+    }
+}
+
+// --- BENCHMARK MODE ---
+
+async function startBenchmark() {
     if (!videoPlayer.src) {
         alert("Vui lòng tải video lên trước!");
         return;
     }
 
-    if (processorType === 'wasm') {
-        try {
-            updateRuntimeStatus();
-            await window.wasmMotion.init();
-            updateRuntimeStatus();
-        } catch (error) {
-            updateRuntimeStatus();
-            alert(error.message);
-            return;
-        }
+    // Init WASM trước để không ảnh hưởng benchmark
+    try {
+        updateRuntimeStatus();
+        await window.wasmMotion.init();
+        updateRuntimeStatus();
+    } catch (error) {
+        updateRuntimeStatus();
+        alert("Không thể khởi tạo WASM: " + error.message);
+        return;
     }
 
-    currentProcessor = processorType;
-    isProcessingJS = true;
+    // Ẩn kết quả cũ
+    comparisonContainer.style.display = 'none';
+    comparisonContainer.innerHTML = '';
+
+    benchmarkMode = true;
+    benchmarkPhase = 'js';
+    benchmarkResults = { js: null, wasm: null };
+    currentProcessor = 'js';
+    isProcessing = true;
+
     setProcessingButtons(true);
+
+    // Đảm bảo video loop (sẽ dừng bằng timer, không cần video kết thúc)
+    videoPlayer.setAttribute('loop', '');
+
     resetMotionState();
-    videoPlayer.play();
-    lastFpsTime = performance.now();
-    frameCount = 0;
-    motionStatus.innerText = `Trạng thái chuyển động: Đang phân tích bằng ${getProcessorLabel()}...`;
+    resetBenchmarkCollectors();
+
+    fpsCounter.innerText = '⚡ Phase 1/2: JavaScript — Đang khởi động...';
+    fpsCounter.style.color = '#007bff';
+    motionStatus.innerText = 'Trạng thái: Đang benchmark JavaScript (10s)...';
     motionStatus.style.color = '#ffd166';
-    fpsCounter.innerText = `Mode: ${getProcessorLabel()} | Video đang chạy`;
-    processVideo();
+
+    // Seek về đầu rồi bắt đầu
+    seekToStartAndRun(() => {
+        videoPlayer.play();
+        processVideo();
+
+        benchmarkTimer = setTimeout(() => {
+            isProcessing = false;
+            handleBenchmarkPhaseComplete();
+        }, BENCHMARK_DURATION_MS);
+    });
 }
+
+function handleBenchmarkPhaseComplete() {
+    benchmarkTimer = null;
+
+    const elapsedTime = (performance.now() - benchmarkStartTime) / 1000;
+    const latencyStats = computeStats(frameLatencies);
+    const fpsStats = computeStats(frameFpsSamples);
+
+    const phaseResult = {
+        latencyStats,
+        fpsStats,
+        totalFrames: totalBenchmarkFrames,
+        totalTime: elapsedTime
+    };
+
+    if (benchmarkPhase === 'js') {
+        benchmarkResults.js = phaseResult;
+
+        // Chuyển sang phase WASM
+        benchmarkPhase = 'wasm';
+        currentProcessor = 'wasm';
+        isProcessing = true;
+
+        resetMotionState();
+        resetBenchmarkCollectors();
+
+        fpsCounter.innerText = '⚡ Phase 2/2: WASM — Đang khởi động...';
+        fpsCounter.style.color = '#17a2b8';
+        motionStatus.innerText = 'Trạng thái: Đang benchmark WASM (10s)...';
+        motionStatus.style.color = '#ffd166';
+
+        seekToStartAndRun(() => {
+            videoPlayer.play();
+            processVideo();
+
+            benchmarkTimer = setTimeout(() => {
+                isProcessing = false;
+                handleBenchmarkPhaseComplete();
+            }, BENCHMARK_DURATION_MS);
+        });
+
+        return;
+    }
+
+    // Phase WASM hoàn tất → hiển thị kết quả
+    benchmarkResults.wasm = phaseResult;
+    benchmarkMode = false;
+    benchmarkPhase = null;
+    isProcessing = false;
+
+    videoPlayer.pause();
+    setProcessingButtons(false);
+    renderComparisonTable();
+
+    fpsCounter.innerText = '✅ Benchmark hoàn tất! Xem kết quả bên dưới.';
+    fpsCounter.style.color = '#00ffcc';
+    motionStatus.innerText = 'Trạng thái: Benchmark đã xong';
+    motionStatus.style.color = '#7ae582';
+}
+
+// --- EVENT LISTENERS ---
 
 // Xử lý sự kiện Upload Video
 videoUpload.addEventListener('change', (e) => {
@@ -182,14 +278,15 @@ videoUpload.addEventListener('change', (e) => {
     if (file) {
         const url = URL.createObjectURL(file);
         videoPlayer.src = url;
-        
+
         videoPlayer.onloadedmetadata = () => {
             hiddenCanvas.width = videoPlayer.videoWidth;
             hiddenCanvas.height = videoPlayer.videoHeight;
             outputCanvas.width = videoPlayer.videoWidth;
             outputCanvas.height = videoPlayer.videoHeight;
-            
-            fpsCounter.innerText = `Video sẵn sàng: ${videoPlayer.videoWidth}x${videoPlayer.videoHeight}`;
+
+            fpsCounter.innerText = `Video sẵn sàng: ${videoPlayer.videoWidth}×${videoPlayer.videoHeight}`;
+            fpsCounter.style.color = '#00ffcc';
             motionStatus.innerText = 'Trạng thái chuyển động: Chưa xử lý';
             motionStatus.style.color = '#ffd166';
             updateRuntimeStatus();
@@ -200,28 +297,40 @@ videoUpload.addEventListener('change', (e) => {
     }
 });
 
-btnRunJS.addEventListener('click', () => startProcessing('js'));
-btnRunWASM.addEventListener('click', () => startProcessing('wasm'));
+btnBenchmark.addEventListener('click', () => startBenchmark());
 
 btnStop.addEventListener('click', () => {
-    isProcessingJS = false;
+    // Hủy timer benchmark nếu đang chạy
+    if (benchmarkTimer) {
+        clearTimeout(benchmarkTimer);
+        benchmarkTimer = null;
+    }
+
+    isProcessing = false;
     videoPlayer.pause();
     setProcessingButtons(false);
     fpsCounter.innerText = "Đã dừng xử lý.";
+    fpsCounter.style.color = '#00ffcc';
     motionStatus.innerText = 'Trạng thái chuyển động: Đã dừng';
     motionStatus.style.color = '#ffd166';
     resetMetrics();
+
+    if (benchmarkMode) {
+        benchmarkMode = false;
+        benchmarkPhase = null;
+    }
 });
 
-// Vòng lặp chính
+// --- VÒNG LẶP XỬ LÝ CHÍNH ---
+
 function processVideo() {
-    if (videoPlayer.paused || videoPlayer.ended || !isProcessingJS) return;
+    if (videoPlayer.paused || videoPlayer.ended || !isProcessing) return;
 
     ctxHidden.drawImage(videoPlayer, 0, 0, hiddenCanvas.width, hiddenCanvas.height);
     const imageData = ctxHidden.getImageData(0, 0, hiddenCanvas.width, hiddenCanvas.height);
 
     const startProcessTime = performance.now();
-    
+
     let processedFrame;
     if (currentProcessor === 'wasm') {
         processedFrame = window.wasmMotion.process(imageData, hiddenCanvas.width, hiddenCanvas.height);
@@ -235,39 +344,201 @@ function processVideo() {
             }
         }
 
-        processedFrame = {
-            processedData,
-            changedPixels
-        };
+        processedFrame = { processedData, changedPixels };
     }
-    
+
     const endProcessTime = performance.now();
     latestLatency = endProcessTime - startProcessTime;
 
-    const totalPixels = hiddenCanvas.width * hiddenCanvas.height;
-    const hasMotion = processedFrame.changedPixels > totalPixels * motionPixelRatioThreshold;
-    updateMotionStatus(hasMotion, processedFrame.changedPixels, totalPixels);
-
+    // Vẽ kết quả lên canvas
     ctxOutput.putImageData(processedFrame.processedData, 0, 0);
 
-    frameCount++;
-    const currentTime = performance.now();
-    const frameInterval = lastFrameTimestamp === null ? 0 : currentTime - lastFrameTimestamp;
-    lastFrameTimestamp = currentTime;
+    // Thu thập dữ liệu benchmark
+    frameLatencies.push(latestLatency);
+    totalBenchmarkFrames++;
 
-    if (frameInterval > 0) {
-        latestFps = 1000 / frameInterval;
+    if (lastFrameTimestamp !== null) {
+        const frameInterval = endProcessTime - lastFrameTimestamp;
+        if (frameInterval > 0) {
+            frameFpsSamples.push(1000 / frameInterval);
+        }
     }
+    lastFrameTimestamp = endProcessTime;
 
-    updateMetricsDisplay();
-    
-    if (currentTime - lastFpsTime >= 1000) {
-        frameCount = 0;
-        lastFpsTime = currentTime;
-    }
+    // Cập nhật hiển thị tiến độ
+    const elapsed = (endProcessTime - benchmarkStartTime) / 1000;
+    const remaining = Math.max(0, (BENCHMARK_DURATION_MS / 1000) - elapsed);
+    const phaseLabel = benchmarkPhase === 'js' ? '1/2: JavaScript' : '2/2: WASM';
+    const currentFps = frameFpsSamples.length > 0
+        ? frameFpsSamples[frameFpsSamples.length - 1].toFixed(1)
+        : '--';
+
+    fpsCounter.innerText = `⚡ Phase ${phaseLabel} — Frame ${totalBenchmarkFrames} | còn ${remaining.toFixed(1)}s | ${latestLatency.toFixed(2)} ms | ${currentFps} FPS`;
 
     requestAnimationFrame(processVideo);
 }
 
+// --- BẢNG SO SÁNH KẾT QUẢ ---
+
+function renderComparisonTable() {
+    const js = benchmarkResults.js;
+    const wasm = benchmarkResults.wasm;
+
+    if (!js || !wasm) return;
+
+    const rows = [
+        { section: 'Tổng quan' },
+        {
+            label: 'Tổng số frame',
+            jsVal: js.totalFrames,
+            wasmVal: wasm.totalFrames,
+            format: (v) => v.toString(),
+            diff: false
+        },
+        {
+            label: 'Thời gian chạy',
+            jsVal: js.totalTime,
+            wasmVal: wasm.totalTime,
+            format: (v) => v.toFixed(2) + ' s',
+            diff: false
+        },
+        { section: 'FPS (Frames Per Second)' },
+        {
+            label: 'FPS trung bình',
+            jsVal: js.fpsStats?.mean,
+            wasmVal: wasm.fpsStats?.mean,
+            format: formatFps,
+            diff: true,
+            lowerIsBetter: false
+        },
+        {
+            label: 'FPS thấp nhất',
+            jsVal: js.fpsStats?.min,
+            wasmVal: wasm.fpsStats?.min,
+            format: formatFps,
+            diff: true,
+            lowerIsBetter: false
+        },
+        {
+            label: 'FPS cao nhất',
+            jsVal: js.fpsStats?.max,
+            wasmVal: wasm.fpsStats?.max,
+            format: formatFps,
+            diff: true,
+            lowerIsBetter: false
+        },
+        { section: 'Latency (Thời gian xử lý mỗi frame)' },
+        {
+            label: 'Trung bình',
+            jsVal: js.latencyStats?.mean,
+            wasmVal: wasm.latencyStats?.mean,
+            format: formatMs,
+            diff: true,
+            lowerIsBetter: true
+        },
+        {
+            label: 'Trung vị (Median)',
+            jsVal: js.latencyStats?.median,
+            wasmVal: wasm.latencyStats?.median,
+            format: formatMs,
+            diff: true,
+            lowerIsBetter: true
+        },
+        {
+            label: 'P95',
+            jsVal: js.latencyStats?.p95,
+            wasmVal: wasm.latencyStats?.p95,
+            format: formatMs,
+            diff: true,
+            lowerIsBetter: true
+        },
+        {
+            label: 'P99',
+            jsVal: js.latencyStats?.p99,
+            wasmVal: wasm.latencyStats?.p99,
+            format: formatMs,
+            diff: true,
+            lowerIsBetter: true
+        },
+        {
+            label: 'Min',
+            jsVal: js.latencyStats?.min,
+            wasmVal: wasm.latencyStats?.min,
+            format: formatMs,
+            diff: true,
+            lowerIsBetter: true
+        },
+        {
+            label: 'Max',
+            jsVal: js.latencyStats?.max,
+            wasmVal: wasm.latencyStats?.max,
+            format: formatMs,
+            diff: true,
+            lowerIsBetter: true
+        },
+        {
+            label: 'Độ lệch chuẩn (Std Dev)',
+            jsVal: js.latencyStats?.stdDev,
+            wasmVal: wasm.latencyStats?.stdDev,
+            format: formatMs,
+            diff: true,
+            lowerIsBetter: true
+        }
+    ];
+
+    let html = `
+        <h2 style="color: #ffd166; text-align: center; margin-bottom: 5px;">
+            📊 Kết quả Benchmark: JS vs WASM
+        </h2>
+        <p style="color: #888; text-align: center; margin-top: 0; font-size: 0.9em;">
+            Video: ${videoPlayer.videoWidth}×${videoPlayer.videoHeight} | ${BENCHMARK_DURATION_MS / 1000}s mỗi thuật toán
+        </p>
+        <table class="comparison-table">
+            <thead>
+                <tr>
+                    <th>Metric</th>
+                    <th>JavaScript</th>
+                    <th>WASM</th>
+                    <th>Chênh lệch</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    for (const row of rows) {
+        if (row.section) {
+            html += `<tr class="section-header"><td colspan="4">${row.section}</td></tr>`;
+            continue;
+        }
+
+        const jsFormatted = row.jsVal != null ? row.format(row.jsVal) : '—';
+        const wasmFormatted = row.wasmVal != null ? row.format(row.wasmVal) : '—';
+
+        let diffCell = '—';
+        let diffColor = '#888';
+        if (row.diff && row.jsVal != null && row.wasmVal != null) {
+            const result = formatDiff(row.jsVal, row.wasmVal, row.lowerIsBetter);
+            diffCell = result.text;
+            diffColor = result.color;
+        }
+
+        html += `
+            <tr>
+                <td>${row.label}</td>
+                <td>${jsFormatted}</td>
+                <td>${wasmFormatted}</td>
+                <td style="color: ${diffColor}; font-weight: bold;">${diffCell}</td>
+            </tr>
+        `;
+    }
+
+    html += '</tbody></table>';
+
+    comparisonContainer.innerHTML = html;
+    comparisonContainer.style.display = 'block';
+    comparisonContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// --- INIT ---
 resetMetrics();
 updateRuntimeStatus();

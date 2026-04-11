@@ -19,15 +19,48 @@
             }
             .stats { font-size: 1.5em; font-weight: bold; color: #00ffcc; margin: 15px 0; font-family: monospace; }
             h2 {margin: 10px}
+
             /* CSS cho các nút bấm */
             button { padding: 10px 15px; font-size: 1em; cursor: pointer; color: white; border: none; border-radius: 4px; margin-right: 10px; }
-            #btnRunJS { background: #007bff; }
-            #btnRunJS:hover { background: #0056b3; }
-            #btnRunWASM { background: #17a2b8; }
-            #btnRunWASM:hover { background: #117a8b; }
+            #btnBenchmark { background: #e67e22; }
+            #btnBenchmark:hover { background: #d35400; }
             #btnStop { background: #dc3545; }
             #btnStop:hover { background: #c82333; }
             button:disabled { background: #666; cursor: not-allowed; }
+
+            /* Comparison table */
+            .comparison-table {
+                width: 100%;
+                border-collapse: collapse;
+                font-family: monospace;
+                font-size: 0.95em;
+                margin-top: 10px;
+            }
+            .comparison-table th {
+                background: #2d2d5e;
+                color: #a8b2ff;
+                padding: 10px 14px;
+                text-align: left;
+                border-bottom: 2px solid #444;
+            }
+            .comparison-table td {
+                padding: 8px 14px;
+                border-bottom: 1px solid #333;
+            }
+            .comparison-table tr:nth-child(even) {
+                background: #2a2a2a;
+            }
+            .comparison-table tr:nth-child(odd) {
+                background: #242424;
+            }
+            .comparison-table .section-header {
+                background: #1a1a3e;
+                color: #ffd166;
+                font-weight: bold;
+                font-size: 0.9em;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+            }
         </style>
     </head>
     <body>
@@ -36,8 +69,7 @@
             <h2>Tải Video 4K MP4</h2>
             <input type="file" id="videoUpload" accept="video/mp4" style="color: white;"/>
             <br><br>
-            <button id="btnRunJS">Chạy thuật toán (Vanilla JS)</button>
-            <button id="btnRunWASM">Chạy thuật toán (WASM)</button>
+            <button id="btnBenchmark">⚡ Benchmark (JS → WASM)</button>
             <button id="btnStop" disabled>Dừng</button>
         </div>
 
@@ -48,6 +80,9 @@
             <canvas id="outputCanvas"></canvas>
         </div>
 
+        <div id="comparisonContainer" style="display: none; width: min(100%, 820px); margin: 15px auto;"></div>
+
+        <script src="benchmark_stats.js"></script>
         <script src="js_motion.js"></script>
         <script src="wasm_motion_bridge.js"></script>
         <script src="app.js"></script>
