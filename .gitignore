@@ -1,5 +1,7 @@
 video4k/
-build/
+scenarios/*/build/
+scenarios/*/.em_cache/
+scenarios/*/.emscripten_local
 .em_cache/
 .emscripten_local
 .DS_Store

@@ -3,7 +3,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-EMSDK_DIR="${EMSDK_DIR:-$SCRIPT_DIR/../emsdk}"
+EMSDK_DIR="${EMSDK_DIR:-$SCRIPT_DIR/../../../emsdk}"
 EM_CACHE_DIR="${EM_CACHE:-$SCRIPT_DIR/.em_cache}"
 EM_CONFIG_FILE="${EM_CONFIG:-$SCRIPT_DIR/.emscripten_local}"
 
@@ -39,12 +39,12 @@ EMSCRIPTEN_ROOT = os.path.realpath('$EMSDK_DIR/upstream/emscripten').replace('\\
 CACHE = os.path.realpath('$EM_CACHE_DIR').replace('\\\\', '/')
 EOF
 
-"$EMCC_BIN" cpp/motion_wasm.cpp \
+"$EMCC_BIN" "$SCRIPT_DIR/cpp/motion_wasm.cpp" \
     -O3 \
     -s WASM=1 \
     -s ALLOW_MEMORY_GROWTH=1 \
     -s EXPORTED_FUNCTIONS='["_malloc","_free","_processMotion","_resetMotionDetector","_getChangedPixelCount"]' \
     -s EXPORTED_RUNTIME_METHODS='["HEAPU8"]' \
-    -o build/motion_wasm.js
+    -o "$SCRIPT_DIR/build/motion_wasm.js"
 
 echo "Build done: build/motion_wasm.js and build/motion_wasm.wasm"
