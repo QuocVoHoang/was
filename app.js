@@ -5,6 +5,7 @@ const outputCanvas = document.getElementById('outputCanvas');
 const btnRunJS = document.getElementById('btnRunJS');
 const btnRunWASM = document.getElementById('btnRunWASM');
 const fpsCounter = document.getElementById('fpsCounter');
+fpsCounter.style.margin = '10px'
 const btnStop = document.getElementById('btnStop');
 const motionStatus = document.createElement('div');
 const runtimeStatus = document.createElement('div');
@@ -34,6 +35,7 @@ motionStatus.className = 'stats';
 motionStatus.style.fontSize = '1.1em';
 motionStatus.style.color = '#ffd166';
 motionStatus.innerText = 'Trạng thái chuyển động: Chưa xử lý';
+motionStatus.style.margin = '10px'
 fpsCounter.insertAdjacentElement('afterend', motionStatus);
 
 runtimeStatus.id = 'runtimeStatus';
@@ -41,6 +43,7 @@ runtimeStatus.className = 'stats';
 runtimeStatus.style.fontSize = '1em';
 runtimeStatus.style.color = '#9ad1ff';
 runtimeStatus.innerText = 'Runtime: JavaScript sẵn sàng | WASM: đang chờ build';
+runtimeStatus.style.margin = '10px'
 motionStatus.insertAdjacentElement('afterend', runtimeStatus);
 
 metricsContainer.id = 'metricsContainer';
@@ -48,7 +51,7 @@ metricsContainer.style.display = 'grid';
 metricsContainer.style.gridTemplateColumns = 'repeat(auto-fit, minmax(220px, 1fr))';
 metricsContainer.style.gap = '12px';
 metricsContainer.style.width = 'min(100%, 800px)';
-metricsContainer.style.margin = '10px 0 18px';
+metricsContainer.style.margin = '10px';
 
 [latencyMetric, fpsMetric].forEach((metric) => {
     metric.className = 'stats';
