@@ -79,8 +79,6 @@ metricsContainer.style.margin = '10px';
     metric.style.borderRadius = '8px';
 });
 
-metricsContainer.append(latencyMetric, fpsMetric);
-runtimeStatus.insertAdjacentElement('afterend', metricsContainer);
 
 // --- HELPER FUNCTIONS ---
 function resetBenchmarkCollectors() {
