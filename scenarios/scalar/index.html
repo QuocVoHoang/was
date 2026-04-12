@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Kịch bản 1: JS vs WASM (Scalar) Benchmark</title>
+        <title>Scenario 1: JS vs WASM (Scalar) Benchmark</title>
         <style>
             body { font-family: sans-serif; padding: 15px; background: #222; color: #fff; }
             .controls { margin-bottom: 10px; padding: 10px; background: #333; border-radius: 8px; }
@@ -20,7 +20,7 @@
             .stats { font-size: 1.5em; font-weight: bold; color: #00ffcc; margin: 15px 0; font-family: monospace; }
             h2 {margin: 10px}
 
-            /* CSS cho các nút bấm */
+            /* Button styles */
             button { padding: 10px 15px; font-size: 1em; cursor: pointer; color: white; border: none; border-radius: 4px; margin-right: 10px; }
             #btnBenchmark { background: #e67e22; }
             #btnBenchmark:hover { background: #d35400; }
@@ -66,17 +66,17 @@
     <body>
 
         <div class="controls">
-            <h2>Kịch bản 1: Scalar — Tải Video 4K MP4</h2>
+            <h2>Scenario 1: Scalar — Upload 4K MP4 Video</h2>
             <input type="file" id="videoUpload" accept="video/mp4" style="color: white;"/>
             <br><br>
             <button id="btnBenchmark">⚡ Benchmark (JS → WASM)</button>
-            <button id="btnStop" disabled>Dừng</button>
+            <button id="btnStop" disabled>Stop</button>
         </div>
 
         <video id="videoPlayer" controls loop muted style="display: none;"></video>
 
         <div class="canvas-container">
-            <div class="stats" id="fpsCounter">Đang chờ video...</div>
+            <div class="stats" id="fpsCounter">Waiting for video...</div>
             <canvas id="outputCanvas"></canvas>
         </div>
 

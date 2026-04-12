@@ -21,8 +21,8 @@ if command -v emcc >/dev/null 2>&1; then
 elif [[ -x "$EMSDK_DIR/upstream/emscripten/emcc" ]]; then
     EMCC_BIN="$EMSDK_DIR/upstream/emscripten/emcc"
 else
-    echo "Khong tim thay emcc. Hay cai/nap Emscripten truoc khi build." >&2
-    echo "Goi y: source ../emsdk/emsdk_env.sh" >&2
+    echo "emcc not found. Please install/source Emscripten before building." >&2
+    echo "Hint: source ../emsdk/emsdk_env.sh" >&2
     exit 1
 fi
 

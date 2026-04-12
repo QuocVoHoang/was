@@ -5,16 +5,16 @@ function processMotionJS(imageData, width, height, threshold = 30) {
     const data = imageData.data;
     const numPixels = width * height;
     
-    // 1. Chuyển sang ảnh xám
+    // 1. Convert to grayscale
     const currentFrameGray = new Uint8ClampedArray(numPixels);
     let pixelIndex = 0;
     for (let i = 0; i < data.length; i += 4) {
         currentFrameGray[pixelIndex++] = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
     }
 
-    // 2. Blur với bán kính lớn (Thay đổi radius để test giới hạn)
+    // 2. Box blur with large radius (change radius to test limits)
     const blurredGray = new Uint8ClampedArray(numPixels);
-    const radius = 3; // Bán kính 5 = Ma trận 11x11 (121 phép tính/pixel). Hãy thử tăng lên 10 nếu máy vẫn mượt!
+    const radius = 3; // Radius 3 = 7x7 kernel (49 ops/pixel). Try increasing to 10 if still smooth!
     const side = radius * 2 + 1;
     const matrixArea = side * side;
     
@@ -22,7 +22,7 @@ function processMotionJS(imageData, width, height, threshold = 30) {
         for (let x = radius; x < width - radius; x++) {
             let sum = 0;
             
-            // Duyệt ma trận xung quanh pixel hiện tại
+            // Iterate kernel matrix around current pixel
             for (let ky = -radius; ky <= radius; ky++) {
                 for (let kx = -radius; kx <= radius; kx++) {
                     const neighborIndex = ((y + ky) * width) + (x + kx);
@@ -30,13 +30,13 @@ function processMotionJS(imageData, width, height, threshold = 30) {
                 }
             }
             
-            // Tính trung bình cộng
+            // Compute mean average
             const centerIndex = y * width + x;
             blurredGray[centerIndex] = sum / matrixArea;
         }
     }
 
-    // 3. So sánh khung hình (Frame Differencing)
+    // 3. Frame differencing
     const outputData = new Uint8ClampedArray(data.length);
     pixelIndex = 0;
 
