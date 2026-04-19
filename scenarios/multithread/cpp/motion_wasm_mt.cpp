@@ -1,8 +1,9 @@
-// motion_wasm_mt.cpp — Multi-threaded motion detection (pthreads)
+// motion_wasm_mt.cpp — Scenario 3: Multi-threaded motion detection (pthreads)
 //
-// Same algorithm as scalar version, parallelized across 4 threads.
-// Each step (grayscale, blur, diff) is split into pixel/row chunks.
-// Uses std::thread backed by Emscripten Web Workers.
+// Same algorithm as Scenario 1 (scalar): float grayscale, naive 7×7 blur, scalar diff
+// Key difference: each step is parallelized across 4 threads (Web Workers)
+// Each thread processes 25% of the image independently
+// Requires SharedArrayBuffer + COOP/COEP headers for shared memory between workers
 
 #include <cstdint>
 #include <cmath>
@@ -39,8 +40,9 @@ void ensure_buffers(int num_pixels, int rgba_length) {
 // ===== WORKER FUNCTIONS =====
 // Each operates on a [start, end) range, safe for concurrent execution.
 
-// Grayscale: same float formula as scalar
-// Each thread converts a chunk of pixels independently.
+// === STEP 1 WORKER: GRAYSCALE (float, same as Scenario 1) ===
+// Each thread converts 25% of pixels using float ITU-R BT.601 formula
+// No data dependency between pixels → perfectly parallelizable
 void grayscale_worker(
     const uint8_t* rgba, uint8_t* gray, int start, int end
 ) {
@@ -52,9 +54,10 @@ void grayscale_worker(
     }
 }
 
-// Box blur: same 7×7 naive algorithm as scalar
-// Each thread handles a horizontal stripe of rows.
-// Reads overlap at stripe boundaries (radius=3) but writes don't → safe.
+// === STEP 2 WORKER: BOX BLUR (naive 7×7, same algorithm as Scenario 1) ===
+// Each thread handles a horizontal stripe of rows (height/4 rows each)
+// Reads overlap at stripe boundaries (radius=3) but writes don't → thread-safe
+// Still uses naive O(49)/pixel — no sliding window optimization
 void blur_worker(
     const uint8_t* input, uint8_t* output,
     int width, int height, int radius,
@@ -80,8 +83,9 @@ void blur_worker(
     }
 }
 
-// Frame diff + output: same logic as scalar
-// Each thread handles a pixel range and counts changes independently.
+// === STEP 3 WORKER: FRAME DIFFERENCING (scalar, same as Scenario 1) ===
+// Each thread processes 25% of pixels, counting changed pixels independently
+// Per-thread counts stored in thread_pixel_counts[] to avoid atomic contention
 void diff_worker(
     const uint8_t* current, const uint8_t* previous,
     uint8_t* out_rgba, int threshold,
@@ -104,6 +108,9 @@ void diff_worker(
 }
 
 // ===== PARALLEL DISPATCH =====
+// Each dispatch creates 4 std::thread → mapped to 4 Web Workers by Emscripten
+// PTHREAD_POOL_SIZE=4 pre-creates workers to reduce spawn overhead
+// Pattern: spawn 4 threads → each processes 25% → join all → proceed to next step
 
 void parallel_grayscale(const uint8_t* rgba, uint8_t* gray, int num_pixels) {
     std::vector<std::thread> threads;
@@ -206,6 +213,7 @@ uint8_t* processMotion(const uint8_t* rgba, int width, int height, int threshold
         }
     }
 
+    // Save current blurred frame as reference for next frame (vector copy ~8.3MB)
     prev_frame_gray = blurred_gray;
     return output_rgba.data();
 }

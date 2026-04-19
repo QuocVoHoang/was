@@ -34,9 +34,11 @@ void ensure_buffers(int num_pixels, int rgba_length) {
     }
 }
 
-// ===== STEP 1: GRAYSCALE (Integer approximation) =====
+// ===== STEP 1: GRAYSCALE (Integer approximation via ALU) =====
 // gray = (77*R + 150*G + 29*B) >> 8 ≈ 0.300R + 0.586G + 0.113B
-// Avoids all float operations (scalar version uses 0.299/0.587/0.114 doubles)
+// Optimization vs Scenario 1: uses integer multiply + bit-shift instead of float
+// ALU (integer) is faster than FPU (float) on WASM
+// Error: ±1 per pixel (acceptable for 8-bit grayscale)
 void convert_grayscale(const uint8_t* rgba, uint8_t* gray, int num_pixels) {
     for (int i = 0; i < num_pixels; i++) {
         const int off = i * 4;
@@ -46,13 +48,16 @@ void convert_grayscale(const uint8_t* rgba, uint8_t* gray, int num_pixels) {
     }
 }
 
-// ===== STEP 2: SEPARABLE BOX BLUR (Sliding Window) =====
-// Scalar version: nested 7×7 loop = 49 additions per pixel
-// SIMD version: separable horizontal + vertical pass = 2 additions per pixel
-// Same mathematical result, ~25x fewer operations
+// ===== STEP 2: SEPARABLE BOX BLUR (Sliding Window — algorithmic optimization) =====
+// Scenario 1 (naive): 4 nested loops, 49 additions per pixel
+// This version: separable 2-pass + sliding window, ~4-5 ops per pixel
+// Separable: blur2D(x,y) = blurV(blurH(x,y)) — mathematically equivalent
+// Sliding window: reuse previous sum, only add 1 new + remove 1 old = O(1)/pixel
+// Combined result: ~10x fewer operations than naive
 
 // Horizontal pass: sliding window along each row
-// Output: row sum of 7 neighbors (uint16 to avoid overflow, max = 7*255 = 1785)
+// Horizontal pass: slide a window of 7 pixels along each row (left to right)
+// Output: row sum of 7 neighbors in uint16 (max = 7×255 = 1785, overflows uint8)
 void blur_horizontal(
     const uint8_t* gray, uint16_t* temp, int width, int height, int radius
 ) {
@@ -80,8 +85,9 @@ void blur_horizontal(
     }
 }
 
-// Vertical pass: sliding window along each column
-// Divides by total area (7×7=49) to produce final uint8 result
+// Vertical pass: slide a window of 7 values along each column (top to bottom)
+// Input: horizontal sums from pass 1 (uint16)
+// Output: final blurred value = sum of 7 horizontal sums / 49 (uint8)
 void blur_vertical(
     const uint16_t* temp, uint8_t* blurred, int width, int height, int radius
 ) {
@@ -106,12 +112,14 @@ void blur_vertical(
     }
 }
 
-// ===== STEP 3: FRAME DIFF + OUTPUT (SIMD 128-bit) =====
-// Processes 16 grayscale pixels per iteration using WASM SIMD intrinsics:
-//   - wasm_u8x16_max/min → absolute difference (unsigned safe)
-//   - wasm_u8x16_gt      → threshold comparison (16 pixels at once)
-//   - wasm_i8x16_bitmask → extract 1 bit per lane for fast counting
-//   - wasm_i8x16_swizzle → expand 16 gray → 64 RGBA bytes
+// ===== STEP 3: FRAME DIFF + OUTPUT (SIMD 128-bit — 16 pixels/instruction) =====
+// This is where SIMD acceleration happens:
+//   - v128 register holds 16 uint8 grayscale pixels (128 bits / 8 bits = 16)
+//   - wasm_u8x16_max/min → unsigned-safe absolute difference for 16 pixels at once
+//   - wasm_u8x16_gt      → threshold comparison: 1 instruction replaces 16 if-else
+//   - wasm_i8x16_bitmask → extract 1 bit per lane into uint16 for fast popcount
+//   - wasm_i8x16_swizzle → expand 16 grayscale bytes → 64 RGBA bytes via shuffle
+// Scalar equivalent needs 16 iterations; SIMD does it in 1 iteration
 void diff_output_simd(
     const uint8_t* current, const uint8_t* previous,
     uint8_t* out_rgba, int num_pixels, int threshold, int& changed_count
@@ -250,6 +258,7 @@ uint8_t* processMotion(const uint8_t* rgba, int width, int height, int threshold
         generate_black_frame(output_rgba.data(), rgba_length);
     }
 
+    // Save current blurred frame as reference for next frame (vector copy ~8.3MB)
     prev_frame_gray = blurred_gray;
     return output_rgba.data();
 }

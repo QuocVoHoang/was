@@ -1,8 +1,9 @@
-// motion_wasm_simd_mt.cpp — SIMD + Multi-threaded motion detection
+// motion_wasm_simd_mt.cpp — Scenario 4: SIMD + Multi-threaded motion detection
 //
-// Combines best of both worlds:
-// - From SIMD scenario: integer grayscale, separable blur, SIMD 128-bit diff
-// - From MT scenario:   4 threads parallelize each step
+// Combines the best optimizations from both Scenario 2 (SIMD) and Scenario 3 (MT):
+// - From SIMD: integer grayscale (ALU), separable sliding window blur, SIMD 128-bit diff
+// - From MT: 4 threads parallelize each step (each thread handles 25% of the image)
+// Result: 4 workers × 16 pixels/SIMD instruction = most efficient processing
 //
 // Each thread processes a stripe/chunk using optimized algorithms + SIMD.
 
@@ -40,9 +41,10 @@ void ensure_buffers(int num_pixels, int rgba_length) {
     }
 }
 
-// ===== STEP 1: PARALLEL INTEGER GRAYSCALE =====
-// gray = (77*R + 150*G + 29*B) >> 8 (no float, from SIMD scenario)
-// Each thread converts a pixel chunk independently.
+// ===== STEP 1 WORKER: PARALLEL INTEGER GRAYSCALE =====
+// Same integer approximation as Scenario 2: (77R + 150G + 29B) >> 8
+// ALU (integer) instead of FPU (float) — faster on WASM
+// Each thread converts 25% of pixels independently (no data dependency)
 void grayscale_worker(
     const uint8_t* rgba, uint8_t* gray, int start, int end
 ) {
@@ -54,9 +56,11 @@ void grayscale_worker(
     }
 }
 
-// ===== STEP 2: PARALLEL SEPARABLE BLUR =====
-// From SIMD scenario: sliding window O(1)/pixel instead of naive O(49)/pixel.
-// Parallelized: horizontal pass splits rows, vertical pass splits columns.
+// ===== STEP 2 WORKERS: PARALLEL SEPARABLE BLUR =====
+// Same sliding window from Scenario 2, but parallelized across 4 threads
+// Horizontal pass: each thread handles height/4 rows
+// Vertical pass: each thread handles width/4 columns
+// Still O(~4-5 ops)/pixel per thread — combined with 4-way parallelism
 
 // Horizontal pass: each thread processes a stripe of rows
 void blur_h_worker(
@@ -114,8 +118,11 @@ void blur_v_worker(
     }
 }
 
-// ===== STEP 3: PARALLEL SIMD FRAME DIFF + OUTPUT =====
-// Each thread handles a pixel chunk using SIMD 128-bit (16 pixels/instruction).
+// ===== STEP 3 WORKER: PARALLEL SIMD FRAME DIFF + OUTPUT =====
+// Combines SIMD (16 pixels/instruction) with MT (4 threads)
+// Each thread handles 25% of pixels using SIMD 128-bit operations
+// Chunks aligned to 16-byte boundaries for optimal SIMD load/store
+// Effective throughput: 4 threads × 16 pixels/SIMD = 64 pixels processed in parallel
 void diff_simd_worker(
     const uint8_t* current, const uint8_t* previous,
     uint8_t* out_rgba, int threshold,
@@ -317,6 +324,7 @@ uint8_t* processMotion(const uint8_t* rgba, int width, int height, int threshold
         generate_black_frame(output_rgba.data(), rgba_length);
     }
 
+    // Save current blurred frame as reference for next frame (vector copy ~8.3MB)
     prev_frame_gray = blurred_gray;
     return output_rgba.data();
 }

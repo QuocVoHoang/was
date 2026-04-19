@@ -1,3 +1,9 @@
+// motion_wasm.cpp — Scenario 1: Scalar WASM (baseline)
+//
+// Algorithm: Grayscale (float) → Box Blur (naive 7×7) → Frame Differencing
+// Identical algorithm to JavaScript baseline, only differs in language (C++/WASM vs JS)
+// Purpose: compare same-algorithm performance between JS and WASM
+
 #include <cmath>
 #include <cstdint>
 #include <vector>
@@ -6,11 +12,12 @@
 
 namespace {
 
-std::vector<uint8_t> prev_frame_gray;
-std::vector<uint8_t> current_frame_gray;
-std::vector<uint8_t> blurred_gray;
-std::vector<uint8_t> output_rgba;
-int last_changed_pixel_count = 0;
+// Reusable buffers — allocated once, reused across frames (no GC overhead)
+std::vector<uint8_t> prev_frame_gray;      // Previous frame (blurred) for comparison
+std::vector<uint8_t> current_frame_gray;   // Current frame (grayscale)
+std::vector<uint8_t> blurred_gray;         // Current frame after blur
+std::vector<uint8_t> output_rgba;          // Output RGBA motion mask
+int last_changed_pixel_count = 0;          // Number of changed pixels
 
 void ensure_buffers(int num_pixels, int rgba_length) {
     current_frame_gray.resize(num_pixels);
@@ -42,6 +49,10 @@ uint8_t* processMotion(const uint8_t* rgba, int width, int height, int threshold
 
     ensure_buffers(num_pixels, rgba_length);
 
+    // === STEP 1: GRAYSCALE CONVERSION (float, FPU) ===
+    // ITU-R BT.601: Y = 0.299R + 0.587G + 0.114B
+    // Uses double (64-bit float) → processed by FPU
+    // Single loop: each pixel is independent, no (x,y) needed
     int pixel_index = 0;
     for (int i = 0; i < rgba_length; i += 4) {
         const double gray_value =
@@ -51,6 +62,10 @@ uint8_t* processMotion(const uint8_t* rgba, int width, int height, int threshold
         current_frame_gray[pixel_index++] = static_cast<uint8_t>(gray_value);
     }
 
+    // === STEP 2: BOX BLUR (naive 2D — 7×7 kernel) ===
+    // Same naive algorithm as JS: 4 nested loops (y, x, ky, kx)
+    // Each pixel sums all 49 neighbors → divide by 49
+    // Complexity: O(n × 49) ≈ 407M ops for 4K
     const int radius = 3;
     const int side = radius * 2 + 1;
     const int matrix_area = side * side;
@@ -71,6 +86,11 @@ uint8_t* processMotion(const uint8_t* rgba, int width, int height, int threshold
         }
     }
 
+    // === STEP 3: FRAME DIFFERENCING ===
+    // Compare current blurred frame vs previous blurred frame
+    // |current - prev| > threshold → motion → white (255)
+    // |current - prev| ≤ threshold → static → black (0)
+    // Writes 4 bytes (RGBA) per pixel to output buffer
     last_changed_pixel_count = 0;
     pixel_index = 0;
 
@@ -96,6 +116,8 @@ uint8_t* processMotion(const uint8_t* rgba, int width, int height, int threshold
         ++pixel_index;
     }
 
+    // Save current blurred frame as reference for next frame
+    // This is a vector copy (memcpy ~8.3MB for 4K)
     prev_frame_gray = blurred_gray;
     return output_rgba.data();
 }
