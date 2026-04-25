@@ -10,17 +10,20 @@ echo "============================================"
 echo ""
 
 # --- 1. Build all WASM modules first ---
-echo "🔨 [1/4] Building WASM (Scalar)..."
+echo "🔨 [1/5] Building WASM (Scalar)..."
 "$SCRIPT_DIR/scenarios/scalar/build_wasm.sh"
 
-echo "🔨 [2/4] Building WASM (SIMD)..."
+echo "🔨 [2/5] Building WASM (SIMD)..."
 "$SCRIPT_DIR/scenarios/simd/build_wasm.sh"
 
-echo "🔨 [3/4] Building WASM (Multi-thread)..."
+echo "🔨 [3/5] Building WASM (Multi-thread)..."
 "$SCRIPT_DIR/scenarios/multithread/build_wasm.sh"
 
-echo "🔨 [4/4] Building WASM (SIMD + Multi-thread)..."
+echo "🔨 [4/5] Building WASM (SIMD + Multi-thread)..."
 "$SCRIPT_DIR/scenarios/simd_mt/build_wasm.sh"
+
+echo "🔨 [5/5] Building WASM (SIMD + MT + Zero-Copy)..."
+"$SCRIPT_DIR/scenarios/zero_copy/build_wasm.sh"
 
 echo ""
 echo "✅ All WASM modules built successfully!"
@@ -63,9 +66,14 @@ python3 "$SCRIPT_DIR/scenarios/simd_mt/server.py" 8083 "$SCRIPT_DIR/scenarios/si
 PIDS+=($!)
 echo "   ✦ SIMD+MT:         http://localhost:8083"
 
+# SIMD+MT+Zero-Copy — port 8084 (needs COOP/COEP headers)
+python3 "$SCRIPT_DIR/scenarios/zero_copy/server.py" 8084 "$SCRIPT_DIR/scenarios/zero_copy" &>/dev/null &
+PIDS+=($!)
+echo "   ✦ SIMD+MT+ZC:      http://localhost:8084"
+
 echo ""
 echo "============================================"
-echo "  All 4 servers are running!"
+echo "  All 5 servers are running!"
 echo "  Press Ctrl+C to stop all."
 echo "============================================"
 
@@ -75,6 +83,7 @@ open http://localhost:8080
 open http://localhost:8081
 open http://localhost:8082
 open http://localhost:8083
+open http://localhost:8084
 
 # Wait for all background processes
 wait
