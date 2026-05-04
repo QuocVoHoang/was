@@ -1,0 +1,259 @@
+\reportchapter{CHƯƠNG 2: CƠ SỞ LÝ THUYẾT}
+
+\reportsubsection{2.1. Tổng quan về tính toán hiệu năng cao trên trình duyệt}
+
+\reportsubsubsection{2.1.1. Sự tiến hóa của Web Runtime}
+
+Trong kỷ nguyên sơ khai, trình duyệt web chủ yếu đóng vai trò hiển thị nội dung tĩnh. Tuy nhiên, sự bùng nổ của các ứng dụng trang đơn (Single Page Application) đã thúc đẩy việc chuyển dịch các tác vụ xử lý từ phía máy chủ về phía máy khách (client-side). Xu hướng này mang lại lợi ích về việc giảm tải cho máy chủ, tối ưu độ trễ mạng và tăng cường bảo mật dữ liệu người dùng.
+
+
+Hiện nay, trình duyệt web hiện đại không chỉ dừng lại ở các tương tác UI đơn giản mà đã trở thành một nền tảng thực thi cho các tác vụ tính toán hạng nặng (compute-intensive) như mô phỏng 3D, xử lý tín hiệu số, trí tuệ nhân tạo và đặc biệt là xử lý video độ phân giải cao (4K) trong thời gian thực. Điều này đặt ra yêu cầu cấp thiết về một môi trường thực thi có hiệu năng gần mức bản địa (near-native performance).
+
+
+\reportsubsubsection{2.1.2. JavaScript và giới hạn hiệu năng cố hữu}
+
+JavaScript là ngôn ngữ chủ đạo trên trình duyệt, vận hành dựa trên cơ chế biên dịch vừa chạy vừa tối ưu (Just-In-Time). Mặc dù các công cụ như V8 (Chrome) đã được tối ưu hóa mạnh mẽ, JS vẫn gặp phải ba rào cản hiệu năng chính khi đối mặt với dữ liệu lớn:
+
+
+Hệ thống kiểu động (Dynamic Typing): Trình duyệt phải thực hiện quy trình "vừa chạy vừa dò" để xác định kiểu dữ liệu của biến. Khi một giả định về kiểu bị sai (ví dụ: một hàm đang nhận số nguyên đột ngột nhận vào chuỗi), trình duyệt phải thực hiện quá trình Deoptimization (Bailout), gây sụt giảm hiệu năng đột ngột và mất ổn định khung hình.
+
+
+Quản lý bộ nhớ tự động (Garbage Collection - GC): Cơ chế GC của JS giúp lập trình viên tránh rò rỉ bộ nhớ nhưng lại gây ra các khoảng dừng (stop-the-world pauses) không thể dự đoán trước. Trong xử lý video 60 FPS, chỉ một khoảng dừng 16.7ms cũng đủ gây ra hiện tượng giật hình (frame jitter).
+
+
+Hạn chế khai thác phần cứng: JS thiếu khả năng kiểm soát trực tiếp tập lệnh SIMD và mô hình đa luồng chia sẻ bộ nhớ thực thụ, dẫn đến chi phí sao chép dữ liệu cực lớn khi xử lý các mảng pixel khổng lồ.
+
+
+\reportsubsubsection{2.1.3. WebAssembly – Giải pháp thực thi hiệu năng cao}
+
+WebAssembly ra đời như một chuẩn mở (W3C) nhằm bổ trợ cho JavaScript trong các kịch bản đòi hỏi tốc độ xử lý tối đa.
+
+
+Kiến trúc cốt lõi và Ưu thế:
+
+
+Định dạng nhị phân và AOT: Wasm là mã nhị phân đã được biên dịch sẵn (Ahead-of-Time - AOT) từ các ngôn ngữ kiểu tĩnh như C++, Rust. Trình duyệt có thể giải mã Wasm nhanh hơn gấp 10 lần so với việc phân tích (parsing) mã nguồn JS dạng văn bản.
+
+
+Máy ảo dựa trên ngăn xếp (Stack-based VM): Wasm hoạt động với hệ thống kiểu tĩnh rõ rệt (i32, i64, f32, f64), cho phép ánh xạ trực tiếp sang mã máy mà không cần suy luận kiểu, loại bỏ hoàn toàn rủi ro Deoptimization.
+
+
+Bộ nhớ tuyến tính (Linear Memory): Wasm sử dụng một mảng byte liên tục được quản lý thủ công (malloc/free). Điều này cho phép tái sử dụng vùng đệm (buffer reuse) qua các khung hình video, loại bỏ áp lực lên bộ thu gom rác và đảm bảo tính xác định (deterministic) về thời gian xử lý.
+
+
+Bảng so sánh quy trình thực thi giữa JavaScript và WebAssembly:
+
+
+\begin{center}
+\small
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash}X|>{\raggedright\arraybackslash}X|>{\raggedright\arraybackslash}X|}
+\hline
+\textbf{Giai đoạn} & \textbf{JavaScript (JIT)} & \textbf{WebAssembly (AOT)} \\
+\hline
+Phân tích & Chuyển văn bản thành AST (Chậm) & Giải mã mã nhị phân (Nhanh) \\
+\hline
+Biên dịch & Vừa chạy vừa tối ưu dựa trên profiling & Biên dịch trực tiếp/Streaming sang mã máy \\
+\hline
+Thực thi & Có thể bị Deoptimization bất cứ lúc nào & Hiệu năng ổn định, gần mức Native \\
+\hline
+Bộ nhớ & Quản lý tự động bởi GC (Gây trễ) & Quản lý thủ công (Ổn định tuyệt đối) \\
+\hline
+\end{tabularx}
+\end{center}
+\normalsize
+
+\reportsubsection{2.2. Các kỹ thuật tối ưu hóa song song trên kiến trúc CPU hiện đại}
+
+\reportsubsubsection{2.2.1. Song song mức dữ liệu (SIMD)}
+
+Theo phân loại của Michael Flynn, SIMD (Single Instruction, Multiple Data) là mô hình kiến trúc máy tính cho phép một lệnh duy nhất thực hiện tính toán đồng thời trên nhiều phần tử dữ liệu. Trong xử lý video, mỗi pixel thường được xử lý độc lập, khiến bài toán này trở nên đặc biệt phù hợp với mô hình SIMD thay vì mô hình SISD (Single Instruction, Single Data) truyền thống.
+
+
+Đặc tả WebAssembly SIMD 128-bit: Được chuẩn hóa để cung cấp các thanh ghi vector 128-bit (kiểu dữ liệu v128). Đối với xử lý ảnh, thanh ghi này có thể chứa đồng thời 16 số nguyên 8-bit (u8x16), cho phép tăng tốc độ xử lý pixel lên gấp nhiều lần trong một chu kỳ lệnh.
+
+
+Lợi thế so với JavaScript: Mặc dù các trình biên dịch JIT hiện đại (như V8) cố gắng thực hiện tự động vector hóa (auto-vectorization), nhưng cơ chế này thường không ổn định và khó dự đoán. WebAssembly cung cấp các hàm nội tại (intrinsics) như wasm\_simd128.h, cho phép lập trình viên kiểm soát trực tiếp phần cứng, đảm bảo hiệu năng tối ưu và nhất quán trên các trình duyệt. Các nghiên cứu cho thấy SIMD có thể cải thiện hiệu năng xử lý ảnh convolution (như Box Blur) lên từ 3 đến 10 lần tùy thuộc vào kiến trúc phần cứng.
+
+
+\reportsubsubsection{2.2.2. Song song mức luồng (Multi-threading)}
+
+Nếu SIMD tối ưu hóa bên trong một lõi CPU, thì đa luồng (Multi-threading) khai thác sức mạnh của nhiều lõi (multi-core).
+
+
+Mô hình chia sẻ bộ nhớ (Shared Memory): Trên trình duyệt, tính năng này được hiện thực hóa thông qua SharedArrayBuffer (SAB). SAB cho phép nhiều Web Workers truy cập chung vào một vùng nhớ tuyến tính của WebAssembly mà không cần sao chép dữ liệu (zero-copy), giúp loại bỏ chi phí truyền thông điệp (message-passing overhead) cực lớn của JavaScript truyền thống.
+
+
+Emscripten pthreads: WebAssembly hỗ trợ thư viện pthreads chuẩn POSIX thông qua việc ánh xạ mỗi pthread thành một Web Worker. Cơ chế này cho phép các ứng dụng C++ đa luồng hiện có được biên dịch sang Web mà vẫn giữ nguyên logic song song hóa, giúp khai thác tối đa tài nguyên CPU đa lõi hiện đại.
+
+
+\reportsubsubsection{2.2.3. Các rào cản vật lý và giới hạn hiệu năng thực tế}
+
+Việc áp dụng song song hóa không mang lại lợi ích tuyến tính vô hạn do các giới hạn vật lý của hệ thống:
+
+
+Chi phí điều phối (Overhead): Việc khởi tạo luồng, đồng bộ hóa (sync) và chia tách dữ liệu tiêu tốn một khoảng thời gian nhất định. Nếu khối lượng tính toán quá nhỏ, chi phí điều phối có thể lớn hơn lợi ích mang lại.
+
+
+Giới hạn băng thông bộ nhớ (Memory-bound vs Compute-bound): Xử lý video 4K đòi hỏi lưu lượng dữ liệu cực lớn (\textasciitilde{}33MB mỗi khung hình). Khi tốc độ tính toán của CPU vượt quá tốc độ cung cấp dữ liệu của RAM, bài toán sẽ chuyển từ giới hạn tính toán sang giới hạn băng thông bộ nhớ. Lúc này, việc thêm luồng hay lệnh SIMD sẽ không còn giúp tăng tốc đáng kể.
+
+
+Rào cản an ninh: Các lỗ hổng như Spectre đã khiến các trình duyệt áp dụng các biện pháp bảo mật nghiêm ngặt (như COOP/COEP), yêu cầu cấu hình máy chủ phức tạp để có thể kích hoạt SharedArrayBuffer và đa luồng.
+
+
+\reportsubsection{2.3. Thuật toán xử lý video thời gian thực}
+
+\reportsubsubsection{2.3.1. Đặc điểm dữ liệu video 4K và áp lực tính toán}
+
+Trong nghiên cứu này, đối tượng thực nghiệm là video độ phân giải 4K UHD (3840 x 2160 pixels). Mỗi khung hình bao gồm khoảng 8,3 triệu điểm ảnh. Với định dạng màu RGBA (4 byte mỗi pixel), dung lượng dữ liệu thô của một khung hình xấp xỉ 33,18 MB.
+
+
+Để đảm bảo trải nghiệm mượt mà ở mức 60 FPS, hệ thống chỉ có tối đa 16,67 ms để hoàn thành toàn bộ chu trình xử lý, bao gồm cả việc giải mã, thực thi thuật toán và kết xuất dữ liệu. Đây là một áp lực cực lớn đối với JavaScript, đặc biệt là khi bài toán phát hiện chuyển động yêu cầu hàng trăm triệu phép tính trên mỗi khung hình.
+
+
+\reportsubsubsection{2.3.2. Quy trình phát hiện chuyển động (Motion Detection)}
+
+Luận văn lựa chọn phương pháp so sánh khung hình (Frame Differencing) kết hợp với bộ lọc mờ (Box Blur) làm đối tượng nghiên cứu. Thuật toán này có tính chất song song cực cao (Embarrassingly Parallel), cho phép mỗi điểm ảnh hoặc khối điểm ảnh có thể được xử lý độc lập, lý tưởng để đánh giá khả năng khai thác SIMD và đa luồng.
+
+
+Quy trình xử lý bao gồm ba giai đoạn chính:
+
+
+Chuyển đổi ảnh xám (Grayscale Conversion): Giảm chiều dữ liệu.
+
+
+Lọc nhiễu trung bình (Box Blur): Loại bỏ nhiễu kỹ thuật số để tránh phát hiện sai.
+
+
+So sánh sai khác (Frame Differencing): Xác định các pixel có sự biến đổi cường độ sáng vượt ngưỡng.
+
+
+\reportsubsubsection{2.3.3. Các bước xử lý chi tiết và kỹ thuật tối ưu hóa}
+
+a. Chuyển đổi ảnh xám
+
+
+Mục đích là chuyển dữ liệu từ 4 kênh màu (RGBA) về 1 kênh cường độ sáng duy nhất nhằm giảm 75\% khối lượng dữ liệu cho các bước sau. Luận văn sử dụng tiêu chuẩn ITU-R BT.601 với công thức:
+
+
+Y = 0.299R + 0.587G + 0.114B
+
+
+Để tối ưu hóa cho CPU và tận dụng đơn vị xử lý số nguyên (ALU), công thức trên được chuyển đổi sang dạng phép nhân số nguyên và trượt bit:
+
+
+Y = (77R + 150G + 29B) \textgreater{}\textgreater{} 8
+
+
+b. Lọc nhiễu Box Blur - Nút cổ chai hệ thống
+
+
+Đây là giai đoạn tốn tài nguyên nhất, chiếm khoảng 90\% khối lượng tính toán của toàn bộ pipeline.
+
+
+Cài đặt thông thường (Naive Implementation): Với mỗi pixel, hệ thống tính trung bình cộng của các pixel trong vùng lân cận k x k (với bán kính r=3, k=7). Độ phức tạp là O(Nk2), tương đương hơn 400 triệu phép tính cho mỗi khung hình 4K.
+
+
+Cài đặt tối ưu (Separable Filter \& Sliding Window): Tận dụng tính chất có thể tách rời của bộ lọc Box Blur để chia một phép tích chập 2D thành hai lượt xử lý 1D (ngang và dọc). Kết hợp với kỹ thuật cửa sổ trượt (Sliding Window), độ phức tạp được giảm xuống mức tuyến tính O(N), giúp tiết kiệm khoảng 24,5 lần số phép tính so với cách làm thông thường.
+
+
+c. So sánh khung hình (Frame Differencing)
+
+
+Pixel tại vị trí (x, y) được xác định là có chuyển động nếu chênh lệch tuyệt đối về cường độ sáng giữa khung hình hiện tại (Bt) và khung hình trước đó (Bt-1) vượt qua một ngưỡng T xác định (trong thực nghiệm T=30):
+
+
+M(x, y) = |Bt(x, y) - Bt-1(x, y)| \textgreater{} T
+
+
+Kết quả cuối cùng được ghi trực tiếp vào vùng nhớ đệm RGBA để hiển thị lên trình duyệt qua Canvas API.
+
+
+\reportsubsection{2.4. Khung đánh giá hiệu năng}
+
+Để đánh giá sự khác biệt giữa các phương pháp triển khai (JavaScript và WebAssembly) một cách khách quan và khoa học, luận văn sử dụng một tập hợp các chỉ số định lượng tập trung vào hai khía cạnh: tốc độ xử lý và tính ổn định của hệ thống thời gian thực.
+
+
+\reportsubsubsection{2.4.1. Các độ đo định lượng cốt lõi}
+
+Thời gian xử lý (Latency): Đây là khoảng thời gian từ khi bắt đầu đến khi hoàn thành pipeline xử lý của duy nhất một khung hình, đơn vị tính bằng mili giây (ms). Trong môi trường trình duyệt, độ trễ này được đo bằng API performance.now() với độ chính xác mức micro-giây. Ngưỡng mục tiêu cho video 60 FPS là Latency \textless{} 16,67ms.
+
+
+Thông lượng khung hình (FPS - Frames Per Second): Số lượng khung hình được hệ thống xử lý hoàn chỉnh và hiển thị trong một giây. Chỉ số này phản ánh hiệu năng tổng thể của ứng dụng, bao gồm cả chi phí giải mã video và vẽ lên màn hình (Canvas).
+
+
+Độ lệch chuẩn (Standard Deviation - σ): Đo lường mức độ biến động của thời gian xử lý (Jitter). Một giá trịσ thấp cho thấy hệ thống vận hành ổn định, trong khi σ cao thường là dấu hiệu của hiện tượng "đóng băng" do bộ thu gom rác (Garbage Collection) hoặc cơ chế điều phối luồng không tối ưu.
+
+
+\reportsubsubsection{2.4.2. Các thông số thống kê chuyên sâu}
+
+Do môi trường trình duyệt chịu ảnh hưởng bởi nhiều yếu tố ngẫu nhiên (tác vụ nền của hệ điều hành, cơ chế tiết kiệm năng lượng), việc chỉ sử dụng giá trị trung bình (Mean) có thể dẫn đến kết quả sai lệch. Luận văn bổ sung các chỉ số:
+
+
+Trung vị (Median): Phản ánh hiệu năng trong điều kiện "điển hình", giúp loại bỏ ảnh hưởng của các giá trị bất thường (outliers).
+
+
+Phân vị (Percentile) P95 và P99: Cho biết ngưỡng thời gian mà 95\% hoặc 99\% số khung hình được xử lý nhanh hơn giá trị đó. Trong xử lý thời gian thực, P99 là chỉ số then chốt; nếu P99 vượt quá 16,67 ms, người dùng sẽ cảm nhận được hiện tượng giật hình ngay cả khi Latency trung bình thấp.
+
+
+\reportsubsubsection{2.4.3. Các mô hình lý thuyết so sánh}
+
+Để đánh giá mức độ khai thác tài nguyên phần cứng của các kịch bản tối ưu, luận văn áp dụng hai mô hình toán học:
+
+
+Tỉ lệ tăng tốc (Speedup - S): Đo lường mức độ cải thiện hiệu năng của phương pháp tối ưu (Toptimized) so với phương pháp cơ sở (Tbaseline):
+
+
+S=TbaselineToptimized
+
+
+Định luật Amdahl: Dùng để dự đoán giới hạn tăng tốc lý thuyết khi song song hóa một chương trình có tỷ lệ phần mã nguồn có thể song song hóa là \$p\$ trên \$n\$ luồng xử lý:
+
+
+S(n)=1(1−p) + pn
+
+
+Mô hình này giúp xác định xem việc thêm luồng (Multi-threading) có thực sự mang lại lợi ích tương xứng hay hệ thống đã chạm ngưỡng giới hạn của phần mã xử lý tuần tự (serial portion).
+
+
+\reportsubsection{2.5. Tổng quan các công trình nghiên cứu liên quan}
+
+Việc nghiên cứu hiệu năng của WebAssembly so với JavaScript và mã nguồn bản địa (native code) đã thu hút được sự quan tâm đáng kể từ cộng đồng nghiên cứu khoa học máy tính kể từ khi Wasm được chuẩn hóa vào năm 2017.
+
+
+\reportsubsubsection{2.5.1. Các nghiên cứu so sánh hiệu năng thực thi cơ bản}
+
+Nhiều nghiên cứu tiền đề đã xác nhận lợi thế về tốc độ của WebAssembly nhờ vào định dạng nhị phân và cơ chế biên dịch AOT. Nghiên cứu của Haas và các cộng sự (2017) đã đặt nền móng khi chứng minh Wasm có thể đạt tốc độ thực thi gần mức native, thường chỉ chậm hơn từ 1,1 đến 2 lần so với mã C tương ứng.
+
+
+Tuy nhiên, nghiên cứu của Jangda và các cộng sự (2019) trong bài báo "Not So Fast: Analyzing the Performance of WebAssembly vs Native Code" đã đưa ra một cái nhìn khắt khe hơn khi chỉ ra rằng trong thực tế, Wasm vẫn chậm hơn mã bản địa trung bình khoảng 1,5 đến 2,5 lần do các rào cản về an ninh và quản lý bộ nhớ tuyến tính. Các nghiên cứu này cũng đồng thuận rằng JavaScript gặp khó khăn trong các tác vụ nặng do hiện tượng sụt giảm hiệu năng khi dự đoán sai kiểu dữ liệu (deoptimization) và ảnh hưởng của bộ thu gom rác (GC).
+
+
+\reportsubsubsection{2.5.2. WebAssembly trong lĩnh vực thị giác máy tính và xử lý ảnh}
+
+Việc đưa các thư viện nặng như OpenCV lên web thông qua dự án OpenCV.js đã chứng minh tính khả thi của việc xử lý thị giác máy tính trực tiếp trên trình duyệt. Nghiên cứu về hiệu suất của các thuật toán tích chập (convolution) – tương tự như bộ lọc Box Blur trong luận văn này – cho thấy WebAssembly mang lại sự ổn định vượt trội so với JavaScript nhờ quản lý bộ nhớ thủ công.
+
+
+Đặc biệt, bài báo "Performance Evaluation of Image Convolution with WebAssembly" đã chỉ ra rằng khi xử lý các ma trận điểm ảnh lớn, Wasm giúp giảm đáng kể thời gian trễ (latency) so với các phương pháp dựa trên mảng định kiểu (TypedArray) của JavaScript.
+
+
+\reportsubsubsection{2.5.3. Đánh giá các kỹ thuật tối ưu hóa phần cứng (SIMD và Multi-threading)}
+
+Sự ra đời của các đặc tả Wasm hiện đại đã cho phép khai thác trực tiếp tập lệnh SIMD 128-bit và đa luồng qua pthreads. Các nghiên cứu hiện tại thường tập trung vào các bài kiểm tra vi mô (micro-benchmarks) để đo lường mức tăng tốc (speedup) lý thuyết của từng kỹ thuật riêng lẻ.
+
+
+Nghiên cứu về SIMD trong WebAssembly chỉ ra rằng việc vector hóa có thể mang lại hiệu năng cao gấp 3 đến 8 lần cho các tác vụ xử lý pixel song song. Đồng thời, các nghiên cứu về đa luồng dựa trên SharedArrayBuffer nhấn mạnh khả năng loại bỏ chi phí sao chép dữ liệu giữa các Web Worker, giúp tối ưu hóa luồng dữ liệu cho các ứng dụng thời gian thực.
+
+
+\reportsubsubsection{2.5.4. Khoảng trống nghiên cứu và đóng góp của luận văn}
+
+Mặc dù có nhiều nghiên cứu về từng kỹ thuật tối ưu riêng biệt, nhưng vẫn tồn tại một khoảng trống nghiên cứu (research gap) đáng kể:
+
+
+Thiếu các đánh giá tích lũy: Các nghiên cứu hiện tại chủ yếu tập trung vào SIMD hoặc Multi-threading đơn lẻ mà chưa phân tích sâu hiệu quả khi kết hợp đồng thời cả hai kỹ thuật này (kịch bản tối ưu tích lũy).
+
+
+Thiếu thực nghiệm trên dữ liệu 4K thực tế: Phần lớn các benchmark sử dụng các tập dữ liệu nhỏ hoặc video độ phân giải thấp, vốn chưa tạo đủ áp lực để bộc lộ rõ rệt hiện tượng giới hạn băng thông bộ nhớ (memory-bound) trên trình duyệt.
+
+
+Luận văn này tập trung giải quyết các khoảng trống trên bằng cách xây dựng hệ thống benchmark có kiểm soát, đánh giá trực tiếp trên video 4K thông qua 4 kịch bản tối ưu hóa lũy tiến. Kết quả nghiên cứu sẽ cung cấp dữ liệu định lượng về điểm tới hạn giữa tốc độ tính toán và băng thông bộ nhớ trong môi trường Web hiện đại.

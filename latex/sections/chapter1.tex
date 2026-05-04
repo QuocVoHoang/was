@@ -1,0 +1,254 @@
+\reportchapter{CHƯƠNG 1: GIỚI THIỆU}
+
+\reportsubsection{1.1. Bối cảnh và Thách thức trong phát triển ứng dụng Web hiện đại}
+
+Sự phát triển mạnh mẽ của các tiêu chuẩn web và năng lực phần cứng trong thập kỷ qua đã biến trình duyệt từ một công cụ hiển thị tài liệu tĩnh thành một nền tảng thực thi ứng dụng toàn diện. Tuy nhiên, sự kỳ vọng ngày càng cao của người dùng đối với các trải nghiệm tương tác phức tạp đã tạo ra một nghịch lý lớn: nhu cầu về các ứng dụng tính toán hiệu năng cao đang vượt xa khả năng đáp ứng của các kiến trúc thực thi dựa trên kịch bản truyền thống.
+
+
+\reportsubsubsection{1.1.1. Sự chuyển dịch sang tính toán hiệu năng cao tại máy khách}
+
+Trong mô hình kiến trúc truyền thống, các tác vụ tính toán nặng thường được ủy thác cho các máy chủ có cấu hình mạnh mẽ. Tuy nhiên, xu hướng hiện nay đang chứng kiến sự chuyển dịch mạnh mẽ của các workload xử lý đa phương tiện, trí tuệ nhân tạo (AI/ML), và mô phỏng 3D trực tiếp về phía máy khách (Client-side). Sự chuyển dịch này mang lại hai lợi ích cốt lõi:
+
+
+Tối ưu hóa độ trễ và băng thông mạng: Việc xử lý dữ liệu tại chỗ loại bỏ nhu cầu gửi các luồng dữ liệu khổng lồ lên máy chủ, đảm bảo tính phản hồi tức thời cho các ứng dụng thời gian thực.
+
+
+Bảo mật và tính riêng tư: Dữ liệu nhạy cảm của người dùng (như hình ảnh, video từ camera) không cần phải rời khỏi thiết bị cá nhân, đáp ứng các tiêu chuẩn khắt khe về bảo vệ quyền riêng tư hiện đại.
+
+
+Mặc dù mang lại nhiều lợi thế, nhưng việc thực thi các luồng dữ liệu lớn—điển hình là video độ phân giải cao như 4K UHD (3840×2160)—trên trình duyệt đặt ra yêu cầu khắc nghiệt về năng lực xử lý của CPU và băng thông bộ nhớ. Điều này trở thành một "bài toán sống còn" đối với các ứng dụng Web Media hiện nay.
+
+
+\reportsubsubsection{1.1.2. Các rào cản về hiệu năng của JavaScript}
+
+Mặc dù JavaScript là ngôn ngữ thống trị nền tảng Web, bản chất của nó lại chứa đựng những hạn chế nội tại đối với các tác vụ tính toán chuyên sâu.
+
+
+Tính thiếu ổn định của cơ chế JIT (Just-In-Time): JavaScript là ngôn ngữ kiểu động, phụ thuộc hoàn toàn vào các bộ tối ưu hóa JIT của trình duyệt (như V8 hay SpiderMonkey). Quá trình "warm-up" của JIT và các rủi ro từ việc "de-optimization" (khi kiểu dữ liệu thay đổi đột ngột) dẫn đến sự thiếu ổn định trong thời gian thực thi.
+
+
+Vấn đề "Jitter" và Garbage Collection (GC): Cơ chế dọn rác tự động của JavaScript thường xuyên gây ra các khoảng dừng thực thi không mong muốn. Trong xử lý video, các khoảng dừng này biểu hiện qua hiện tượng rớt khung hình (dropped frames) và jitter, làm giảm nghiêm trọng trải nghiệm người dùng.
+
+
+Rào cản khai thác phần cứng: JavaScript truyền thống gặp khó khăn trong việc khai thác trực tiếp các kiến trúc phần cứng hiện đại như tập lệnh SIMD (Single Instruction, Multiple Data) để song song hóa mức dữ liệu, hoặc các luồng xử lý đa nhân (Multi-threading) thực sự do bản chất đơn luồng (Single-threaded) của Event Loop.
+
+
+\reportsubsubsection{1.1.3. WebAssembly và hứa hẹn về hiệu năng tiệm cận bản địa}
+
+Sự ra đời của WebAssembly đánh dấu một bước ngoặt quan trọng, cung cấp một tiêu chuẩn mã nhị phân thấp cấp được thiết kế để bổ trợ cho JavaScript. Wasm cho phép các nhà phát triển biên dịch mã nguồn từ các ngôn ngữ hệ thống như C, C++ hoặc Rust thành một định dạng có thể thực thi trên trình duyệt với tốc độ gần như mã bản địa (near-native).
+
+
+Với các ưu thế về kiểu dữ liệu tĩnh (static typing), mô hình bộ nhớ tuyến tính và khả năng tương thích cao với SIMD cũng như đa luồng, Wasm hứa hẹn sẽ giải phóng sức mạnh tính toán của trình duyệt khỏi các rào cản của JS. Tuy nhiên, một vấn đề khoa học quan trọng được đặt ra là: Trong một pipeline xử lý video thực tế với khối lượng dữ liệu 4K, liệu sự cải thiện của Wasm có thực sự mang lại speedup tuyến tính như lý thuyết, hay sẽ bị giới hạn bởi các overhead của trình duyệt? Đề tài nghiên cứu này sẽ tập trung phân tích định lượng sự cải thiện hiệu năng thực tế của Wasm trong các kịch bản tối ưu hóa khác nhau so với JavaScript.
+
+
+\reportsubsection{1.2. Công trình liên quan và Khoảng trống nghiên cứu}
+
+Việc đánh giá hiệu năng giữa WebAssembly và JavaScript đã trở thành một chủ đề thu hút sự quan tâm lớn của cộng đồng nghiên cứu kể từ khi Wasm được giới thiệu như một chuẩn nhị phân nhằm đạt tốc độ thực thi tiệm cận bản địa [5]. Các nghiên cứu hiện nay tập trung vào ba hướng chính: đánh giá hiệu năng tổng quát qua các bài thử nghiệm vi mô, ứng dụng Wasm trong các tác vụ chuyên biệt, và khả năng khai thác các tính năng phần cứng nâng cao.
+
+
+\reportsubsubsection{1.2.1. Đánh giá hiệu năng WebAssembly trong các tác vụ tính toán chuyên sâu}
+
+Phần lớn các nghiên cứu ban đầu tập trung vào việc so sánh Wasm và JS thông qua các tập lệnh thử nghiệm vi mô (micro-benchmarks). Haas và cộng sự [5] đã đặt nền móng cho việc khẳng định Wasm có khả năng mang lại hiệu năng cao hơn đáng kể so với JS nhờ vào định dạng nhị phân kiểu tĩnh. Ciszewski và Myk [6] cũng như Vemuri [8] chỉ ra rằng Wasm chiếm ưu thế vượt trội trong các bài toán ràng buộc bởi CPU (CPU-bound) như thuật toán sàng Eratosthenes, sắp xếp mảng hay các tính toán đệ quy. Tuy nhiên, JavaScript nhờ cơ chế JIT vẫn giữ được sự cạnh tranh trong một số kịch bản tính toán số thực dấu phẩy động đơn giản [6].
+
+
+Dù có nhiều hứa hẹn, các đánh giá thực nghiệm quy mô lớn đã chỉ ra những "mảng tối" về hiệu năng. Jangda và cộng sự [1] qua các bài thử nghiệm SPEC CPU đã phát hiện ra rằng mã Wasm thực tế chạy chậm hơn mã bản địa trung bình từ 45\% đến 55\%. Yan và cộng sự [2] cũng nhấn mạnh rằng hiệu năng của Wasm không đồng nhất, phụ thuộc lớn vào trình biên dịch, trình duyệt thực thi và mô hình bộ nhớ được sử dụng. Ţălu [4] bổ sung rằng các môi trường thực thi khác nhau có sự khác biệt đáng kể về chi phí overhead khi thực hiện các cuộc gọi liên tác (interoperability) giữa JS và Wasm.
+
+
+\reportsubsubsection{1.2.2. Các ứng dụng Thị giác máy tính trên nền tảng Web}
+
+Thị giác máy tính là lớp bài toán điển hình cho việc xử lý dữ liệu khối lượng lớn. Taheri và cộng sự [3] đã giới thiệu OpenCV.js, một bước tiến lớn đưa thư viện thị giác máy tính chuẩn mực lên web thông qua biên dịch sang JS/Wasm. Nghiên cứu này cho thấy các ứng dụng như phát hiện khuôn mặt hay trích xuất đặc trưng có thể hoạt động trực tiếp tại máy khách, dù vẫn tồn tại khoảng cách hiệu năng so với ứng dụng bản địa.
+
+
+Gần đây, các nghiên cứu bắt đầu tập trung vào việc tối ưu hóa tầng thấp. Oishi và cộng sự [7] đã chứng minh rằng việc cài đặt mã Wasm tự tùy chỉnh cho phép sử dụng các phép toán vectơ (vector operations) giúp tăng tốc độ xử lý các bộ lọc tích chập (convolution filters) đáng kể so với các thư viện tổng quát như OpenCV.js. Parab [9] cũng khẳng định rằng vai trò của Wasm trong frontend đang ngày càng mở rộng, đặc biệt là khả năng tận dụng SIMD và đa luồng để giải quyết các bài toán xử lý dữ liệu theo thời gian thực.
+
+
+Bảng các công trình nghiên cứu liên quan:
+
+
+\begin{center}
+\small
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash}X|>{\raggedright\arraybackslash}X|>{\raggedright\arraybackslash}X|>{\raggedright\arraybackslash}X|>{\raggedright\arraybackslash}X|}
+\hline
+\textbf{Tác giả} & \textbf{Đối tượng nghiên cứu} & \textbf{Kỹ thuật so sánh} & \textbf{Chỉ số đánh giá} & \textbf{Khoảng trống} \\
+\hline
+Haas et al. (2017) & Đa dạng (PolyBench, v.v.) & Wasm vs JS vs Native & Execution Time & Tập trung vào giới thiệu chuẩn Wasm, chưa đi sâu vào video 4K. \\
+\hline
+Jangda et al. (2019) & SPEC CPU Suite & Wasm vs Native & Speedup, Overhead & Đánh giá tổng quát, chưa xét đến các đặc tính SIMD/Threading trên trình duyệt. \\
+\hline
+Taheri et al. (2018) & OpenCV.js (Face detect, v.v.) & JS vs Wasm (asm.js) & Latency & Dùng thư viện OpenCV có sẵn, chưa tối ưu sâu mức tập lệnh (SIMD). \\
+\hline
+Yan et al. (2021) & 150 ứng dụng Wasm thực tế & Browser runtimes & Execution variance & Nghiên cứu về độ ổn định tổng quát, không chuyên sâu về pipeline video. \\
+\hline
+Oishi et al. (2021) & Image Convolution (Filters) & Wasm Scalar vs SIMD & Processing Time & Chỉ thực hiện trên ảnh tĩnh, chưa xét đến tính cộng hưởng với Multi-threading. \\
+\hline
+Đề tài này (2026) & Pipeline Motion Detection (4K Video) & JS vs Wasm (Scalar, SIMD, MT, SIMD+MT) & Latency, FPS, P99, Jitter & Lấp đầy khoảng trống về xử lý video 4K và tối ưu hóa tích lũy. \\
+\hline
+\end{tabularx}
+\end{center}
+\normalsize
+
+\reportsubsubsection{1.2.3. Khoảng trống nghiên cứu}
+
+Mặc dù các nghiên cứu hiện tại đã cung cấp cái nhìn tổng quan về tiềm năng của Wasm, vẫn tồn tại những hạn chế cốt lõi mà đề tài này hướng tới giải quyết:
+
+
+Thiếu hụt thực nghiệm trên Workload cực lớn (4K Video): Phần lớn các nghiên cứu hiện nay (như [1], [6], [7]) vẫn thực hiện trên các hạt nhân khoa học nhỏ (scientific kernels) hoặc xử lý ảnh tĩnh. Chưa có nhiều nghiên cứu đánh giá pipeline xử lý video thời gian thực trên độ phân giải 4K UHD, nơi mà áp lực lên băng thông bộ nhớ và CPU là lớn nhất.
+
+
+Thiếu đánh giá về hiệu quả tối ưu tích lũy: Hầu hết các công trình thường so sánh đơn lẻ: hoặc Wasm vs JS [8], hoặc SIMD vs Scalar [7]. Hiện tại rất hiếm nghiên cứu phân tích một cách hệ thống hiệu quả cộng hưởng của bốn kịch bản tối ưu hóa lũy tiến: Scalar -\textgreater{} SIMD -\textgreater{} Multi-threading -\textgreater{} SIMD + Multi-threading trong cùng một hệ thống thực nghiệm thực tế.
+
+
+Vấn đề ổn định trong xử lý luồng dữ liệu: Các nghiên cứu đa số tập trung vào thời gian thực thi trung bình mà bỏ qua các chỉ số về độ ổn định như P99 hay Jitter trong một pipeline video dài hạn – yếu tố quyết định trải nghiệm người dùng thực tế.
+
+
+Đề tài này sẽ lấp đầy các khoảng trống trên bằng cách xây dựng một framework benchmark chuẩn hóa, thực hiện đánh giá định lượng tác động tích lũy của các kỹ thuật tối ưu hóa phần cứng trên pipeline xử lý video 4K thực tế.
+
+
+\reportsubsection{1.3. Động lực, Mục tiêu và Câu hỏi nghiên cứu}
+
+\reportsubsubsection{1.3.1. Động lực chọn đề tài}
+
+Động lực thúc đẩy nghiên cứu này xuất phát từ sự giao thoa giữa nhu cầu thực tế của người dùng và các rào cản kỹ thuật hiện hữu trên nền tảng Web, được phân tích qua ba tầng bài toán sau:
+
+
+Bài toán tổng quát – Nâng cao trải nghiệm người dùng tại máy khách: Trong kỷ nguyên số hóa, người dùng ngày càng ưu tiên các ứng dụng Web có tính tương tác cao và khả năng xử lý dữ liệu tức thời. Việc chuyển dịch các tác vụ tính toán nặng từ máy chủ về máy khách (Client-side computing) không chỉ giúp giảm chi phí hạ tầng mà còn là yếu tố then chốt để đảm bảo tính riêng tư của dữ liệu và giảm thiểu độ trễ mạng [4][9].
+
+
+Bài toán hẹp – Tối ưu hóa xử lý video thời gian thực: Trong các loại hình dữ liệu, video thời gian thực là lớp workload "nhạy cảm" nhất với hiệu năng. Khi độ phân giải chuẩn hóa chuyển dần sang 4K UHD, khối lượng pixel cần xử lý mỗi giây tăng lên đột biến, đòi hỏi một cơ chế thực thi cực kỳ ổn định. JavaScript (JS), với các hạn chế về JIT và Garbage Collection, thường xuyên gây ra hiện tượng rớt khung hình, không đáp ứng được yêu cầu khắt khe của các ứng dụng media chuyên nghiệp [1][8].
+
+
+Bài toán cụ thể – Motion Detection làm workload đại diện: Đề tài lựa chọn thuật toán phát hiện chuyển động (Motion Detection) không phải với mục tiêu cải tiến thuật toán, mà sử dụng nó như một kịch bản thử nghiệm (test case) đại diện cho lớp bài toán xử lý pixel lặp lại cường độ cao. Đây là workload lý tưởng để đo lường giới hạn chịu tải của trình duyệt và đánh giá hiệu quả của việc can thiệp sâu vào kiến trúc phần cứng thông qua WebAssembly.
+
+
+\reportsubsubsection{1.3.2. Mục tiêu nghiên cứu}
+
+Nghiên cứu được thực hiện nhằm đạt được các mục tiêu cụ thể sau:
+
+
+Xây dựng hệ thống Benchmark chuẩn hóa: Thiết kế một framework đo lường hiệu năng chuyên biệt trên trình duyệt, có khả năng cô lập các yếu tố gây nhiễu (DOM, I/O) để thu thập dữ liệu chính xác về thời gian thực thi của thuật toán trên luồng video 4K.
+
+
+Đánh giá định lượng sức mạnh của 4 mức tối ưu hóa WebAssembly: Thực hiện so sánh đối chiếu giữa JavaScript baseline và WebAssembly qua bốn kịch bản lũy tiến: Scalar, SIMD, Multi-threading, và sự kết hợp SIMD + Multi-threading.
+
+
+Đề xuất khuyến nghị kỹ thuật: Dựa trên các dữ liệu thực nghiệm, phân tích các điểm đánh đổi (trade-offs) để cung cấp hướng dẫn cho các nhà phát triển trong việc lựa chọn cấu hình tối ưu khi xây dựng các ứng dụng Web Media hiệu năng cao.
+
+
+\reportsubsubsection{1.3.3. Câu hỏi nghiên cứu}
+
+Để định hướng cho các hoạt động thực nghiệm, đề tài tập trung giải quyết các câu hỏi nghiên cứu sau:
+
+
+RQ1: Trong môi trường xử lý video 4K với khối lượng dữ liệu pixel lớn, phiên bản WebAssembly Scalar mang lại hệ số tăng tốc (Speedup factor) như thế nào so với mã nguồn JavaScript truyền thống?
+
+
+RQ2: Việc áp dụng tập lệnh SIMD giúp tối ưu hóa thời gian xử lý khung hình ở mức độ nào đối với các phép toán xử lý ảnh cơ bản?
+
+
+RQ3: Khi triển khai đa luồng trong WebAssembly, hiệu năng thực tế có đạt được sự tăng trưởng tuyến tính hay bị giới hạn bởi chi phí quản lý luồng và băng thông bộ nhớ của trình duyệt?
+
+
+RQ4: Kịch bản kết hợp SIMD và Multi-threading có thực sự đảm bảo tính ổn định thực thi (Execution stability) và giảm thiểu tối đa hiện tượng biến động trễ trong các pipeline video kéo dài hay không?
+
+
+\reportsubsection{1.4. Phạm vi và Phương pháp nghiên cứu}
+
+Để đảm bảo tính tập trung và độ tin cậy của các kết quả thực nghiệm, nghiên cứu này được thiết lập trong một khuôn khổ kỹ thuật và quy trình thực nghiệm chặt chẽ.
+
+
+\reportsubsubsection{1.4.1. Phạm vi và Giới hạn của nghiên cứu}
+
+Phạm vi về kỹ thuật thực thi: Nghiên cứu tập trung hoàn toàn vào khả năng tính toán tổng quát của CPU (CPU-bound tasks) thông qua WebAssembly và JavaScript. Đề tài chủ động loại trừ các giải pháp tăng tốc phần cứng dựa trên GPU (như WebGL hay WebGPU) để cô lập và đánh giá chính xác hiệu quả tối ưu hóa mức tập lệnh (SIMD) và đa luồng (Multi-threading) của kiến trúc Wasm [5][9].
+
+
+Phạm vi về dữ liệu thực nghiệm: Để tạo ra áp lực (workload) đủ lớn nhằm bộc lộ các nút thắt cổ chai về hiệu năng, nghiên cứu sử dụng luồng dữ liệu video độ phân giải 4K UHD (3840×2160). Đây là ngưỡng dữ liệu mà các cơ chế thông dịch truyền thống của JavaScript thường gặp khó khăn trong việc duy trì tốc độ xử lý thời gian thực [1][3].
+
+
+Phạm vi về thuật toán: Đề tài triển khai một Pipeline Motion Detection tiêu chuẩn bao gồm ba giai đoạn xử lý pixel liên tục:
+
+
+Chuyển đổi thang xám (Grayscale conversion): Thao tác trên từng pixel đơn lẻ.
+
+
+Làm mờ (Box Blur): Thao tác tính toán tích chập (convolution) trên vùng lân cận, đòi hỏi truy xuất bộ nhớ cao [7].
+
+
+Phân tách khung hình (Frame differencing): So sánh sự khác biệt giữa các frame liên tiếp để xác định chuyển động.
+
+
+\reportsubsubsection{1.4.2. Phương pháp nghiên cứu}
+
+Đề tài áp dụng Phương pháp thực nghiệm hệ thống (Systematic Experimental Method) để thu thập dữ liệu định lượng và phân tích hiệu năng dựa trên mô hình các biến số được kiểm soát chặt chẽ:
+
+
+Thiết kế mô hình thực nghiệm: Xây dựng một hệ thống Benchmark thống nhất trên trình duyệt (đại diện là Google Chrome) để thực thi cùng một thuật toán bằng cả JavaScript và WebAssembly dưới các kịch bản tối ưu hóa khác nhau.
+
+
+Các biến số nghiên cứu:
+
+
+Biến độc lập (Independent Variables): Các kịch bản thực thi bao gồm: (1) JavaScript Baseline; (2) Wasm Scalar; (3) Wasm SIMD; (4) Wasm Multi-threading; (5) Wasm SIMD + Multi-threading.
+
+
+Biến phụ thuộc (Dependent Variables): Các chỉ số hiệu năng định lượng bao gồm:
+
+
+Thời gian thực thi (Latency): Tính bằng mili giây (ms) cho mỗi khung hình.
+
+
+Tốc độ khung hình (FPS): Khả năng duy trì sự mượt mà của pipeline.
+
+
+Tính ổn định (P99 \& Variance): Sử dụng phân vị thứ 99 (P99) và độ lệch chuẩn để đánh giá hiện tượng Jitter (biến động trễ), yếu tố then chốt trong các hệ thống thời gian thực [2].
+
+
+Hệ số tăng tốc (Speedup factor): So sánh tương quan giữa các kịch bản tối ưu với Baseline.
+
+
+Quy trình thu thập và xử lý dữ liệu: Mỗi kịch bản được thực thi lặp lại trên một số lượng khung hình đủ lớn (warm-up và thực thi chính thức) để loại bỏ các sai số ngẫu nhiên từ hệ điều hành và cơ chế dọn rác (Garbage Collection) của trình duyệt. Dữ liệu thu thập được sẽ được phân tích thống kê để rút ra các kết luận khoa học về điểm bão hòa hiệu năng và các điểm đánh đổi kỹ thuật.
+
+
+\reportsubsection{1.5. Đóng góp và Cấu trúc báo cáo}
+
+\reportsubsubsection{1.5.1. Đóng góp về mặt khoa học và thực tiễn}
+
+Kết quả của luận văn này mang lại những giá trị đóng góp cụ thể sau:
+
+
+Về mặt khoa học:
+
+
+Bộ dữ liệu thực nghiệm hệ thống: Cung cấp các số liệu định lượng về hiệu năng của WebAssembly trong điều kiện tải cực lớn (4K Video). Khác với các nghiên cứu trước đây tập trung vào ảnh tĩnh [7] hoặc các thuật toán rời rạc [1][6], nghiên cứu này cung cấp cái nhìn toàn diện về sự thay đổi của các chỉ số Latency, FPS và đặc biệt là độ ổn định (P99, Jitter) trong một pipeline xử lý thực tế.
+
+
+Phân tích về điểm bão hòa hiệu năng (Point of diminishing returns): Đây là đóng góp quan trọng nhất của đề tài. Nghiên cứu chỉ ra liệu việc kết hợp đồng thời SIMD (song song mức dữ liệu) và Multi-threading (song song mức luồng) có tạo ra hiệu ứng cộng hưởng tuyến tính hay không, hay sẽ đạt tới điểm tới hạn do các rào cản về băng thông bộ nhớ và chi phí quản lý luồng (overhead) trên trình duyệt [2][4].
+
+
+Về mặt thực tiễn:
+
+
+Hệ thống Benchmark chuẩn hóa: Xây dựng một framework đo lường mã nguồn mở, cho phép các nhà phát triển Web Media dễ dàng kiểm thử và so sánh các thuật toán xử lý video của họ trên các môi trường trình duyệt khác nhau.
+
+
+Khuyến nghị kỹ thuật: Đưa ra các chỉ dẫn thực hành (Best practices) cho việc tối ưu hóa ứng dụng web hiệu năng cao. Kết quả nghiên cứu giúp lập trình viên xác định được kịch bản tối ưu nhất cho từng loại workload xử lý pixel, tránh việc áp dụng đa luồng một cách lạm dụng khi không mang lại hiệu quả tương xứng với chi phí tài nguyên.
+
+
+\reportsubsubsection{1.5.2. Cấu trúc luận văn}
+
+Nội dung luận văn được tổ chức thành 5 chương chính như sau:
+
+
+Chương 1 – Giới thiệu: Trình bày bối cảnh nghiên cứu, xác định rào cản của JavaScript và hứa hẹn của WebAssembly. Xác lập mục tiêu, phạm vi và câu hỏi nghiên cứu.
+
+
+Chương 2 – Cơ sở lý thuyết: Hệ thống hóa các kiến thức về kiến trúc WebAssembly, các đặc tả SIMD, Multi-threading (SharedArrayBuffer/Web Workers). Giới thiệu về lớp bài toán Motion Detection và các phương pháp xử lý ảnh liên quan.
+
+
+Chương 3 – Thiết kế và Cài đặt hệ thống: Mô tả kiến trúc của hệ thống Benchmark, quy trình biên dịch từ C++ sang Wasm bằng Emscripten. Chi tiết hóa việc cài đặt pipeline xử lý video cho 5 kịch bản thực nghiệm: JavaScript, Wasm Scalar, SIMD, Multi-threading và SIMD + Multi-threading.
+
+
+Chương 4 – Kết quả thực nghiệm và Phân tích: Trình bày các dữ liệu thu thập được qua biểu đồ và bảng biểu. Phân tích sâu về hệ số tăng tốc, hiện tượng Jitter và đánh giá mức độ ảnh hưởng của các kỹ thuật tối ưu hóa lên trải nghiệm video 4K.
+
+
+Chương 5 – Kết luận và Hướng phát triển: Tổng kết các kết quả đạt được đối chiếu với câu hỏi nghiên cứu ban đầu. Nêu rõ các hạn chế còn tồn tại và đề xuất các hướng nghiên cứu mở rộng trong tương lai (như WebGPU hoặc ứng dụng AI).

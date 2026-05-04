@@ -1,0 +1,288 @@
+\reportchapter{CHƯƠNG 3: THIẾT KẾ VÀ CÀI ĐẶT HỆ THỐNG}
+
+\reportsubsection{3.1 Mục tiêu và Nguyên tắc thiết kế}
+
+\reportsubsubsection{3.1.1 Mục tiêu thiết kế hệ thống}
+
+Mục tiêu cốt lõi của việc thiết kế hệ thống là xây dựng một môi trường thực nghiệm trung lập và chuẩn hóa nhằm đánh giá định lượng sự khác biệt về hiệu năng giữa JavaScript và WebAssembly trong bài toán xử lý video thời gian thực. Hệ thống không tập trung vào việc xây dựng một ứng dụng hoàn thiện cho người dùng cuối mà ưu tiên tính chính xác trong đo lường (benchmarking accuracy) và khả năng tái lập kết quả (reproducibility).
+
+
+Hệ thống được thiết kế theo mô hình ứng dụng đơn trang (Single Page Application - SPA) thực thi hoàn toàn tại phía máy khách (client-side). Việc lựa chọn kiến trúc này giúp đảm bảo rằng kết quả đo lường phản ánh trực tiếp năng lực tính toán của trình duyệt và tài nguyên phần cứng, loại bỏ hoàn toàn các yếu tố gây nhiễu từ độ trễ mạng hay cấu hình máy chủ.
+
+
+\reportsubsubsection{3.1.2 Nguyên tắc đảm bảo tính khoa học}
+
+Để đảm bảo kết quả so sánh giữa các kịch bản tối ưu là khách quan và có giá trị học thuật, hệ thống tuân thủ nghiêm ngặt các nguyên tắc thiết kế sau:
+
+
+Cô lập môi trường (Scenario Isolation): Mỗi kịch bản tối ưu (từ Scalar đến SIMD và Multi-threading) được thực thi trên các cổng HTTP riêng biệt (8080–8083). Điều này giúp ngăn chặn tình trạng chồng chéo trạng thái bộ nhớ đệm hoặc các tối ưu hóa tiềm ẩn của trình duyệt từ kịch bản trước làm ảnh hưởng đến kết quả của kịch bản sau.
+
+
+Kiểm soát biến số nghiêm ngặt (Strict Control Variables): Toàn bộ các thành phần như dữ liệu đầu vào (video 4K mẫu), thuật toán xử lý logic (Box Blur, Frame Differencing), và cơ chế đo lường được giữ đồng nhất 100\% giữa các phiên bản. Biến độc lập duy nhất được thay đổi là các kỹ thuật tối ưu hóa tại tầng WebAssembly (biến đổi mã nguồn C++ và cờ hiệu biên dịch).
+
+
+Đo lường thời gian thực thi thuần túy (Pure Measurement): Hệ thống chỉ thực hiện ghi nhận thời gian tại các điểm chốt (checkpoints) ngay trước và sau khi thực thi thuật toán lõi. Các chi phí ngoại vi như giải mã video (video decoding), kết xuất giao diện (DOM Rendering) và vẽ dữ liệu lên Canvas đều được tách biệt khỏi chỉ số Latency để đảm bảo số liệu thu được chỉ phản ánh hiệu suất của engine thực thi.
+
+
+Hạn chế phụ thuộc (Zero Dependencies): Hệ thống không sử dụng các thư viện bên thứ ba (như OpenCV.js hay TensorFlow.js) hoặc các framework hiện đại nhằm loại bỏ chi phí từ các lớp trừu tượng bổ sung, đảm bảo đo lường hiệu năng của mã nguồn thuần túy.
+
+
+Tự động hóa và lặp lại (Automation \& Reproducibility): Quy trình biên dịch và khởi chạy được tự động hóa qua các kịch bản lệnh (scripts) nhằm giảm thiểu sai sót do thao tác thủ công, cho phép thực hiện đo lường liên tục qua hàng nghìn khung hình để lấy mẫu thống kê.
+
+
+\reportsubsection{3.2 Kiến trúc hệ thống tổng thể}
+
+\reportsubsubsection{3.2.1 Mô hình Single Page Application (SPA)}
+
+Hệ thống được xây dựng theo mô hình Ứng dụng đơn trang (SPA), cho phép toàn bộ quá trình xử lý và tính toán diễn ra trực tiếp tại trình duyệt của người dùng (client-side). Trong kiến trúc này, máy chủ HTTP chỉ đóng vai trò phục vụ các tài nguyên tĩnh như mã nguồn HTML, JavaScript và các mô-đun nhị phân WebAssembly. Việc thực thi logic hoàn toàn tại phía máy khách giúp loại bỏ các biến số gây nhiễu từ độ trễ mạng hay cấu hình máy chủ, đảm bảo rằng các kết quả thực nghiệm phản ánh chính xác hiệu năng của các engine thực thi (JS và WASM) trên cùng một cấu hình phần cứng.
+
+
+\reportsubsubsection{3.2.2 Sơ đồ khối các thành phần chính}
+
+Để đảm bảo tính linh hoạt cho việc triển khai 04 kịch bản tối ưu hóa khác nhau, hệ thống được cấu trúc thành các mô-đun chức năng tách biệt:
+
+
+Giao diện người dùng (User Interface): Thành phần này cung cấp bộ công cụ tương tác, cho phép người dùng tải lên video 4K mẫu, điều khiển các phiên benchmark và theo dõi kết quả xử lý trực quan thông qua các thành phần Canvas.
+
+
+Bộ điều phối (Orchestrator - app.js): Đóng vai trò là trung tâm điều khiển (Central Hub) của hệ thống. Thành phần này quản lý vòng lặp xử lý chính (main loop), điều phối luồng dữ liệu pixel giữa các engine và kích hoạt quy trình thu thập Metrics tại các điểm chốt (checkpoints).
+
+
+Engine xử lý (JS \& WASM Engines): Chứa các cài đặt lõi của thuật toán phát hiện chuyển động. Engine JavaScript đóng vai trò là đường tham chiếu (baseline), trong khi Engine WebAssembly được biên dịch từ mã nguồn C++ để thực thi các kịch bản tối ưu phần cứng.
+
+
+Cầu nối WebAssembly (WASM Bridge): Đây là lớp trung gian chuyên biệt chịu trách nhiệm quản lý bộ nhớ tuyến tính (Linear Memory). Nó thực hiện việc cấp phát vùng đệm và sao chép dữ liệu pixel giữa môi trường JavaScript (Managed Heap) và WebAssembly (Isolated Memory).
+
+
+Mô-đun thống kê (Statistics Module): Chịu trách nhiệm lưu trữ các dấu thời gian thô và thực hiện phân tích thống kê sau khi kết thúc quá trình lấy mẫu để đưa ra các chỉ số như Mean, Median, P99 và Độ lệch chuẩn.
+
+
+\reportsubsubsection{3.2.3 Luồng xử lý dữ liệu (Data Pipeline)}
+
+Luồng dữ liệu trong hệ thống được thiết kế theo dạng đường ống (pipeline) để tối ưu hóa thông lượng xử lý cho video độ phân giải cao. Quy trình xử lý một khung hình bao gồm các giai đoạn sau:
+
+
+Trích xuất (Extraction): Bộ điều phối sử dụng requestAnimationFrame để đồng bộ với tần số quét của màn hình, trích xuất dữ liệu pixel thô từ khung hình video hiện tại thông qua Canvas API.
+
+
+Chuẩn bị (Marshalling): Dữ liệu được chuyển đổi sang định dạng Uint8ClampedArray. Đối với WebAssembly, dữ liệu này sẽ được sao chép vào vùng nhớ tuyến tính thông qua WASM Bridge.
+
+
+Thực thi (Execution): Engine thực hiện chuỗi thuật toán tích lũy: Chuyển đổi ảnh xám -\textgreater{} Lọc nhiễu Box Blur -\textgreater{} So sánh chênh lệch khung hình.
+
+
+Kết xuất và Thu thập (Output \& Metrics): Kết quả xử lý được đẩy ngược lại Canvas để hiển thị, đồng thời thời gian thực thi của thuật toán được ghi nhận lại để phục vụ phân tích thống kê.
+
+
+\reportsubsection{3.3 Thiết kế tầng lưu trữ và Giao tiếp (The Bridge)}
+
+Sự khác biệt về mô hình bộ nhớ giữa JavaScript (với cơ chế Garbage Collection) và WebAssembly (với Linear Memory) đặt ra thách thức lớn về mặt hiệu năng khi xử lý dữ liệu video 4K. Tầng giao tiếp (The Bridge) được thiết kế để tối ưu hóa quá trình luân chuyển dữ liệu và giảm thiểu độ trễ nảy sinh từ việc sao chép vùng nhớ.
+
+
+\reportsubsubsection{3.3.1 Quản lý bộ nhớ tuyến tính trong WASM}
+
+WebAssembly tương tác với dữ liệu thông qua một vùng nhớ duy nhất được gọi là Bộ nhớ tuyến tính (Linear Memory). Đây thực chất là một mảng byte liên tục (ArrayBuffer) mà cả JavaScript và WebAssembly đều có thể truy cập.
+
+
+Cấu trúc lưu trữ: Đối với video độ phân giải 4K, hệ thống cấp phát các vùng đệm cố định trong bộ nhớ tuyến tính để chứa: khung hình hiện tại, khung hình trước đó và khung hình kết quả.
+
+
+Tối ưu hóa thủ công: Thay vì dựa vào Garbage Collector của JavaScript—vốn gây ra các khoảng dừng (pause) không xác định—hệ thống thực hiện quản lý bộ nhớ thủ công qua malloc và free. Các vùng đệm này được tái sử dụng (buffer reuse) xuyên suốt vòng đời của ứng dụng để triệt tiêu chi phí cấp phát lại.
+
+
+\reportsubsubsection{3.3.2 Cơ chế điều phối dữ liệu (Marshaling)}
+
+Do tính chất cô lập của máy ảo Wasm, dữ liệu pixel từ đối tượng ImageData của trình duyệt không thể được xử lý trực tiếp bởi mã C++. Hệ thống triển khai chu trình điều phối 5 bước:
+
+
+Allocate: Xác định địa chỉ con trỏ (pointer) trong vùng nhớ WASM Heap.
+
+
+Copy-in: Sao chép dữ liệu từ Uint8ClampedArray của JS vào bộ nhớ tuyến tính của WASM.
+
+
+Process: Thực thi các module thuật toán C++ trên vùng nhớ này.
+
+
+Copy-out: Chuyển kết quả từ bộ nhớ tuyến tính ngược lại môi trường JS để chuẩn bị hiển thị.
+
+
+Release: Quản lý trạng thái con trỏ để chuẩn bị cho khung hình kế tiếp.
+
+
+Lưu ý về hiệu năng: Với độ phân giải 4K, mỗi khung hình chiếm khoảng 33.17 MB dữ liệu thô. Chi phí sao chép này (Marshaling overhead) được tính gộp vào tổng độ trễ (latency) của WebAssembly để đảm bảo tính khách quan khi so sánh với JavaScript.
+
+
+\reportsubsubsection{3.3.3 Đồng bộ hóa bộ nhớ trong đa luồng}
+
+Trong các kịch bản tối ưu hóa đa luồng (Multi-threading), cơ chế giao tiếp được nâng cấp thông qua SharedArrayBuffer (SAB).
+
+
+Chia sẻ bộ nhớ thực thụ: Khác với cơ chế truyền thông điệp (Message Passing) thông thường của Web Workers yêu cầu sao chép dữ liệu, SAB cho phép tất cả các luồng Worker truy cập đồng thời vào cùng một vùng nhớ tuyến tính của WASM.
+
+
+Đồng bộ hóa không khóa (Lock-free): Để tránh hiện tượng tranh chấp dữ liệu (Race condition) mà vẫn đảm bảo hiệu suất cao, hệ thống sử dụng các lệnh Atomics để điều phối việc đọc/ghi giữa luồng chính và các luồng phụ.
+
+
+Yêu cầu bảo mật: Để kích hoạt tầng giao tiếp này, máy chủ bắt buộc phải cấu hình các tiêu đề bảo mật COOP (Cross-Origin-Opener-Policy) và COEP (Cross-Origin-Embedder-Policy) để trình duyệt cho phép sử dụng SharedArrayBuffer.
+
+
+\reportsubsection{3.4 Cài đặt các kịch bản thực nghiệm (Core Implementation)}
+
+Phần này mô tả chi tiết quá trình triển khai thuật toán phát hiện chuyển động qua bốn cấp độ tối ưu hóa khác nhau. Mỗi kịch bản được thiết kế để cô lập và đánh giá hiệu quả của một tầng công nghệ cụ thể.
+
+
+\reportsubsubsection{3.4.1 Kịch bản 1: Triển khai Scalar (Baseline)}
+
+Kịch bản này được thiết lập làm điểm tham chiếu cơ sở để đo lường lợi ích hiệu năng thuần túy của môi trường thực thi WebAssembly (Wasm) so với JavaScript (JS).
+
+
+Phía JavaScript: Sử dụng kiểu dữ liệu số thực (float64) mặc định và thuật toán Box Blur nguyên bản với độ phức tạp \$O(N \textbackslash{}cdot k\textasciicircum{}2)\$. Điểm yếu cốt lõi ở đây là áp lực lên bộ thu gom rác (Garbage Collector) do việc khởi tạo mảng Uint8ClampedArray mới cho mỗi khung hình.
+
+
+Phía WebAssembly: Triển khai mã nguồn C++ tương đương nhưng tận dụng khả năng quản lý bộ nhớ thủ công. Hệ thống thực hiện tái sử dụng vùng đệm (Buffer Reuse), giúp loại bỏ hoàn toàn các khoảng dừng (pause) do GC, đảm bảo tính xác định (deterministic) trong thời gian xử lý.
+
+
+\reportsubsubsection{3.4.2 Kịch bản 2: Tối ưu hóa mức dữ liệu (SIMD 128-bit)}
+
+Kịch bản này tập trung vào việc khai thác sức mạnh của xử lý song song mức tập lệnh (vectorization).
+
+
+Vector hóa: Thay thế cơ chế xử lý tuần tự từng byte bằng các tập lệnh vector 128-bit từ thư viện wasm\_simd128.h, cho phép xử lý đồng thời 16 điểm ảnh trong một chu kỳ lệnh.
+
+
+Số nguyên hóa (Integer Math): Chuyển đổi các phép tính ảnh xám từ số thực sang số nguyên thông qua các lệnh như wasm\_u16x8\_mul để triệt tiêu chi phí xử lý dấu phẩy động.
+
+
+Xử lý mặt nạ bit: Sử dụng lệnh wasm\_u8x16\_sub\_sat (trừ có bão hòa) để tính chênh lệch khung hình cho 16 pixel cùng lúc, kết hợp với các toán tử logic để tối thiểu hóa việc rẽ nhánh (branching) trong mã máy.
+
+
+\reportsubsubsection{3.4.3 Kịch bản 3: Tối ưu hóa mức luồng (Multi-threading)}
+
+Kịch bản này chuyển dịch trọng tâm từ việc giảm số lượng lệnh sang việc phân phối khối lượng tính toán trên các lõi CPU khác nhau thông qua mô hình Fork-Join.
+
+
+Chiến lược phân mảnh (Data Chunking): Dữ liệu ảnh được chia thành các dải hàng ngang (Row Stripes) độc lập. Mỗi luồng Worker xử lý một dải dữ liệu riêng biệt để tránh tranh chấp bộ nhớ (data race).
+
+
+Đồng bộ hóa luồng: Sử dụng thư viện pthreads của C++ được ánh xạ sang Web Workers thông qua cờ hiệu -pthread. Luồng chính thực hiện ba chu kỳ Fork-Join tương ứng với ba bước của thuật toán để đảm bảo tính toàn vẹn của dữ liệu giữa các giai đoạn.
+
+
+\reportsubsubsection{3.4.4 Kịch bản 4: Tối ưu hóa tích lũy (Hybrid SIMD + Multi-thread)}
+
+Đây là kịch bản tối ưu hóa cao cấp nhất, kết hợp đồng thời cả ba tầng: Thuật toán, Dữ liệu và Luồng.
+
+
+Nâng cấp thuật toán: Thay thế Box Blur nguyên bản bằng Separable Blur, chia phép tích chập 2D thành hai giai đoạn 1D (ngang và dọc). Việc này kết hợp với kỹ thuật cửa sổ trượt (sliding window) giúp giảm độ phức tạp tính toán xuống mức tối thiểu.
+
+
+Hiệu ứng nhân (Multiplicative Effect): Hệ thống thực thi tập lệnh SIMD bên trong từng luồng Worker. Pipeline xử lý được chia thành bốn giai đoạn Fork-Join, tận dụng tối đa băng thông bộ nhớ và tài nguyên đa lõi của CPU.
+
+
+Căn chỉnh dữ liệu (Alignment): Để tối ưu hóa SIMD trong đa luồng, các khối dữ liệu được phân chia theo bội số của 16-byte, giúp loại bỏ phần dư xử lý tuần tự (scalar remainder) và đạt thông lượng tối đa.
+
+
+\reportsubsection{3.5 Môi trường thực nghiệm}
+
+Để đảm bảo tính nhất quán và độ tin cậy của các dữ liệu thu thập được, toàn bộ các thí nghiệm trong luận văn này được thực hiện trong một môi trường kiểm soát chặt chẽ với các thông số kỹ thuật cụ thể về phần cứng và phần mềm.
+
+
+\reportsubsubsection{3.5.1 Cấu hình phần cứng}
+
+Thực nghiệm được tiến hành trên hệ thống máy tính cá nhân (Desktop) với cấu hình chi tiết như sau:
+
+
+Bộ vi xử lý (CPU): Apple M4. Cấu hình này hỗ trợ tập lệnh SIMD (Advanced SIMD - NEON) và có 10 nhân xử lý vật lý (bao gồm 4 nhân hiệu năng cao và 6 nhân tiết kiệm điện). Hệ thống cho phép đánh giá hiệu quả của đa luồng tối đa 4 luồng theo thiết kế, tương ứng với số lượng nhân hiệu năng cao (Performance-cores) có sẵn.
+
+
+Bộ nhớ RAM: 16GB Unified Memory (Bộ nhớ thống nhất).
+
+
+Card đồ họa (GPU): Apple M4 GPU (10 nhân).
+
+
+Lưu ý: GPU chỉ đóng vai trò hiển thị, không tham gia vào quá trình tính toán lõi nhằm cô lập năng lực xử lý của CPU.
+
+
+\reportsubsubsection{3.5.2 Cấu hình phần mềm và Môi trường thực thi}
+
+Các công cụ và nền tảng phần mềm được sử dụng bao gồm:
+
+
+Hệ điều hành: MacOS Tahoe.
+
+
+Trình duyệt web: Google Chrome phiên bản 113+. Đây là môi trường thực thi chính, hỗ trợ đầy đủ các đặc tả WebAssembly SIMD và SharedArrayBuffer.
+
+
+Trình biên dịch: Emscripten (emcc) phiên bản 5.0.6.
+
+
+Môi trường Server: Python-based HTTP Server được cấu hình để gửi các tiêu đề phản hồi (Response Headers) đặc thù:
+
+
+Cross-Origin-Opener-Policy: same-origin.
+
+
+Cross-Origin-Embedder-Policy: require-corp.
+
+
+\reportsubsubsection{3.5.3 Tham số biên dịch và Dữ liệu đầu vào}
+
+Để đạt được hiệu suất tối ưu cho các mô-đun WebAssembly, các cờ hiệu (flags) biên dịch sau được áp dụng:
+
+
+Mức tối ưu hóa: -O3 (Mức cao nhất để tối ưu hóa thời gian thực thi).
+
+
+SIMD: -msimd128 (Kích hoạt tập lệnh 128-bit).
+
+
+Multi-threading: -pthread kết hợp -s PTHREAD\_POOL\_SIZE=4 (Thiết lập sẵn 4 luồng để loại bỏ độ trễ khởi tạo).
+
+
+Dữ liệu thử nghiệm: Hệ thống sử dụng tệp tin video mẫu định dạng MP4 (H.264), độ phân giải 4K UHD (3840 x 2160 pixels). Việc sử dụng dữ liệu 4K giúp tạo ra tải tính toán đủ lớn (xấp xỉ 8.3 triệu điểm ảnh mỗi khung hình) để bộc lộ rõ rệt sự khác biệt về hiệu năng giữa các kịch bản.
+
+
+\reportsubsection{3.6 Phương pháp Benchmark và Thu thập dữ liệu}
+
+Để các kết quả thực nghiệm có giá trị thuyết phục và khách quan, hệ thống triển khai một giao thức đo lường chuẩn hóa, tập trung vào việc cô lập hiệu năng thực thi lõi và xử lý dữ liệu theo các phương pháp thống kê hiện đại.
+
+
+\reportsubsubsection{3.6.1 Các điểm đo lường (Measurement Checkpoints)}
+
+Hệ thống phân tách rõ rệt giữa "Thời gian xử lý thuật toán" và "Thời gian thực thi hệ thống". Các điểm chốt (checkpoints) được đặt tại các vị trí chiến lược trong mã nguồn để thu thập dữ liệu:
+
+
+Latency thực thi lõi (Texec): Được đo bằng API performance.now() với độ chính xác đến micro giây (µs). Điểm bắt đầu đặt ngay trước khi gọi hàm xử lý pixel (processMotionJS hoặc wasmMotion.process) và điểm kết thúc đặt ngay sau khi hàm trả về. Cách tiếp cận này loại bỏ các yếu tố gây nhiễu từ việc giải mã video (decoding), truy xuất camera (I/O) và kết xuất giao diện (DOM Rendering).
+
+
+Độ trễ cầu nối (Tbridge): Riêng với WebAssembly, hệ thống ghi lại chi phí thời gian cho việc sao chép dữ liệu qua lại giữa JS Heap và Wasm Linear Memory để đánh giá ảnh hưởng của băng thông bộ nhớ.
+
+
+\reportsubsubsection{3.6.2 Quy trình lấy mẫu và Giai đoạn khởi động (Warm-up)}
+
+Để loại bỏ các sai số do đặc thù thực thi của trình duyệt (như cơ chế JIT Compiler hay thu gom rác GC), quy trình lấy mẫu tuân thủ hai giai đoạn:
+
+
+Giai đoạn Khởi động (Warm-up Phase): Hệ thống chạy thuật toán liên tục trong 100 khung hình đầu tiên mà không ghi nhận kết quả. Giai đoạn này cho phép engine V8 của Chrome thực hiện tối ưu hóa mã nguồn (Optimizing Compiler) và đạt trạng thái hiệu năng ổn định (Steady-state).
+
+
+Giai đoạn Lấy mẫu (Sampling Phase): Sau khởi động, hệ thống thực hiện đo lường liên tục trên tối thiểu 1000 khung hình (tương đương khoảng 30-40 giây video 4K). Việc lấy mẫu số lượng lớn giúp làm mượt các đỉnh trễ (latency spikes) do hệ điều hành điều phối tài nguyên đột ngột.
+
+
+\reportsubsubsection{3.6.3 Phương pháp xử lý thống kê}
+
+Dữ liệu thô sau khi thu thập được xử lý qua các chỉ số thống kê để đánh giá toàn diện hiệu năng:
+
+
+Giá trị trung bình (Mean) và Trung vị (Median): Đánh giá hiệu suất tổng thể của hệ thống. Trung vị được ưu tiên sử dụng để phản ánh hiệu năng thực tế vì nó ít bị ảnh hưởng bởi các giá trị ngoại lai (outliers).
+
+
+Phân vị thứ 99 (P99 Latency): Chỉ số này cực kỳ quan trọng trong xử lý video thời gian thực. Nó đại diện cho độ trễ trong tình huống xấu nhất (worst-case), giúp đánh giá hiện tượng "giật hình" (stuttering).
+
+
+Độ lệch chuẩn (Standard Deviation): Dùng để đo lường tính ổn định (Jitter) của môi trường thực thi. Độ lệch chuẩn càng thấp chứng tỏ engine thực thi càng có tính xác định (deterministic) cao.
+
+
+Thông lượng (Throughput): Được tính đổi từ Latency sang số khung hình trên giây (FPS) để đối chiếu với tiêu chuẩn hiển thị thực tế (thường là 24, 30 hoặc 60 FPS).

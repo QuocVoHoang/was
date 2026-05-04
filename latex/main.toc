@@ -1,0 +1,32 @@
+\contentsline {section}{Lời cảm ơn}{1}{section*.1}%
+\contentsline {section}{Mục lục}{2}{section*.2}%
+\contentsline {section}{Danh mục hình ảnh}{4}{section*.3}%
+\contentsline {section}{Danh mục hình ảnh}{5}{section*.4}%
+\contentsline {section}{Danh mục từ viết tắt}{6}{section*.5}%
+\contentsline {section}{CHƯƠNG 1: GIỚI THIỆU}{7}{section*.6}%
+\contentsline {subsection}{1.1. Bối cảnh và Thách thức trong phát triển ứng dụng Web hiện đại}{7}{section*.7}%
+\contentsline {subsection}{1.2. Công trình liên quan và Khoảng trống nghiên cứu}{8}{section*.11}%
+\contentsline {subsection}{1.3. Động lực, Mục tiêu và Câu hỏi nghiên cứu}{11}{section*.15}%
+\contentsline {subsection}{1.4. Phạm vi và Phương pháp nghiên cứu}{12}{section*.19}%
+\contentsline {subsection}{1.5. Đóng góp và Cấu trúc báo cáo}{13}{section*.22}%
+\contentsline {section}{CHƯƠNG 2: CƠ SỞ LÝ THUYẾT}{15}{section*.25}%
+\contentsline {subsection}{2.1. Tổng quan về tính toán hiệu năng cao trên trình duyệt}{15}{section*.26}%
+\contentsline {subsection}{2.2. Các kỹ thuật tối ưu hóa song song trên kiến trúc CPU hiện đại}{16}{section*.30}%
+\contentsline {subsection}{2.3. Thuật toán xử lý video thời gian thực}{17}{section*.34}%
+\contentsline {subsection}{2.4. Khung đánh giá hiệu năng}{18}{section*.38}%
+\contentsline {subsection}{2.5. Tổng quan các công trình nghiên cứu liên quan}{19}{section*.42}%
+\contentsline {section}{CHƯƠNG 3: THIẾT KẾ VÀ CÀI ĐẶT HỆ THỐNG}{22}{section*.47}%
+\contentsline {subsection}{3.1 Mục tiêu và Nguyên tắc thiết kế}{22}{section*.48}%
+\contentsline {subsection}{3.2 Kiến trúc hệ thống tổng thể}{22}{section*.51}%
+\contentsline {subsection}{3.3 Thiết kế tầng lưu trữ và Giao tiếp (The Bridge)}{24}{section*.55}%
+\contentsline {subsection}{3.4 Cài đặt các kịch bản thực nghiệm (Core Implementation)}{25}{section*.59}%
+\contentsline {subsection}{3.5 Môi trường thực nghiệm}{26}{section*.64}%
+\contentsline {subsection}{3.6 Phương pháp Benchmark và Thu thập dữ liệu}{27}{section*.68}%
+\contentsline {section}{CHƯƠNG 4: KẾT QUẢ VÀ PHÂN TÍCH}{29}{section*.72}%
+\contentsline {subsection}{4.1 Giới thiệu chương}{29}{section*.73}%
+\contentsline {subsection}{4.2 Kết quả thực nghiệm các kịch bản đơn lẻ}{29}{section*.74}%
+\contentsline {subsection}{4.3 Kết quả kịch bản tích lũy (SIMD + Multi-threading)}{31}{section*.78}%
+\contentsline {subsection}{4.4 Phân tích chuyên sâu và Thảo luận}{32}{section*.82}%
+\contentsline {subsection}{4.5 Tổng kết chương}{33}{section*.86}%
+\contentsline {section}{CHƯƠNG 5: KẾT LUẬN VÀ HƯỚNG PHÁT TRIỂN}{35}{section*.87}%
+\contentsline {section}{Tài liệu tham khảo}{36}{section*.88}%

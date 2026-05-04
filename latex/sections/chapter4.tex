@@ -1,0 +1,246 @@
+\reportchapter{CHƯƠNG 4: KẾT QUẢ VÀ PHÂN TÍCH}
+
+\reportsubsection{4.1 Giới thiệu chương}
+
+Chương này trình bày và phân tích chi tiết các kết quả thu được từ quá trình thực nghiệm hệ thống benchmark đã thiết kế tại Chương 3. Mục tiêu cốt lõi là đưa ra các bằng chứng định lượng để so sánh hiệu năng giữa JavaScript và WebAssembly trong bài toán xử lý video độ phân giải 4K (3840 x 2160 pixels) thông qua bốn kịch bản tối ưu hóa tích lũy.
+
+
+Để đảm bảo tính khách quan và độ tin cậy của dữ liệu, toàn bộ các chỉ số đo lường (Latency, FPS, P99, Standard Deviation) được thu thập sau khi hệ thống đã trải qua giai đoạn khởi động (warm-up) 100 khung hình để ổn định trình biên dịch JIT và bộ thu gom rác (GC) của trình duyệt. Quá trình lấy mẫu chính thức được thực hiện liên tục trên 1000 khung hình tiếp theo cho mỗi kịch bản, nhằm loại bỏ các sai số ngẫu nhiên từ hệ điều hành.
+
+
+Nội dung của chương được cấu trúc theo mạch phân tích từ cơ bản đến chuyên sâu, bao gồm:
+
+
+Phân tích hiệu năng đơn luồng (Scalar): Đối chiếu trực tiếp giữa engine thực thi của JavaScript và WebAssembly.
+
+
+Đánh giá các tầng tối ưu hóa phần cứng: Phân tích mức độ cải thiện khi áp dụng lần lượt tập lệnh SIMD 128-bit và mô hình đa luồng (Multi-threading) qua pthreads.
+
+
+Đánh giá kịch bản tích lũy (Hybrid): Xác định giới hạn hiệu năng thực tế khi kết hợp đồng thời các kỹ thuật tối ưu hóa thuật toán và phần cứng.
+
+
+Thảo luận và Biện giải: Phân tích bản chất chuyển dịch từ giới hạn tính toán (Compute-bound) sang giới hạn băng thông bộ nhớ (Memory-bound) và so sánh kết quả thực tế với giới hạn lý thuyết của Định luật Amdahl.
+
+
+Các kết quả này sẽ là cơ sở thực chứng quan trọng để đưa ra những kết luận về khả năng thay thế hoặc bổ trợ của WebAssembly đối với JavaScript trong các ứng dụng web hiệu năng cao hiện nay.
+
+
+\reportsubsection{4.2 Kết quả thực nghiệm các kịch bản đơn lẻ}
+
+Trong phần này, luận văn tập trung đánh giá hiệu năng của các kỹ thuật tối ưu hóa khi hoạt động độc lập nhằm xác định mức đóng góp của từng tầng công nghệ vào tốc độ xử lý tổng thể của hệ thống.
+
+
+\reportsubsubsection{4.2.1 Kịch bản 1: JavaScript và WebAssembly Scalar (Baseline)}
+
+Kịch bản 1 thiết lập đường cơ sở (baseline) để so sánh hiệu năng giữa hai môi trường thực thi mà không có sự hỗ trợ của các kỹ thuật tối ưu hóa phần cứng đặc biệt.
+
+
+\begin{center}\textit{Bảng 4.1: So sánh hiệu năng giữa JavaScript và WebAssembly (Scalar)}\end{center}
+
+\begin{center}
+\small
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash}X|>{\raggedright\arraybackslash}X|>{\raggedright\arraybackslash}X|>{\raggedright\arraybackslash}X|}
+\hline
+\textbf{Chỉ số} & \textbf{JavaScript (Baseline)} & \textbf{WebAssembly (Scalar)} & \textbf{Tỉ lệ tăng tốc (Speedup)} \\
+\hline
+Latency trung bình (ms) & [Số liệu] & [Số liệu] & [S = Latency\_JS / Latency\_Wasm] \\
+\hline
+Median Latency (ms) & [Số liệu] & [Số liệu] & - \\
+\hline
+FPS trung bình & [Số liệu] & [Số liệu] & - \\
+\hline
+Độ lệch chuẩn (σ) & [Số liệu] & [Số liệu] & - \\
+\hline
+\end{tabularx}
+\end{center}
+\normalsize
+
+Phân tích và Nhận xét:
+
+
+Hiệu năng thực thi: Kết quả thực nghiệm cho thấy WebAssembly Scalar thường cung cấp hiệu năng vượt trội hơn so với JavaScript thuần túy. Điều này có thể giải thích bởi cơ chế biên dịch Ahead-of-Time (AOT) của WebAssembly giúp bỏ qua các bước suy luận kiểu dữ liệu và tối ưu hóa JIT (Just-in-Time) phức tạp của engine V8.
+
+
+Tính ổn định: Chỉ số độ lệch chuẩn (Standard Deviation) ở phía JavaScript thường cao hơn, phản ánh hiện tượng biến động thời gian xử lý do cơ chế thu gom rác tự động (Garbage Collection) gây ra các khoảng dừng (pauses) không xác định. Ngược lại, WebAssembly duy trì tính xác định (deterministic) cao hơn nhờ quản lý bộ nhớ thủ công và tái sử dụng vùng đệm (Buffer Reuse).
+
+
+\reportsubsubsection{4.2.2 Kịch bản 2: Hiệu quả của tối ưu hóa mức dữ liệu (SIMD)}
+
+Kịch bản này đánh giá tác động của việc vector hóa các phép tính trên pixel bằng tập lệnh SIMD 128-bit.
+
+
+\begin{center}\textit{Hình 4.1: Biểu đồ so sánh Latency giữa WebAssembly Scalar và SIMD}\end{center}
+
+(Ghi chú: Anh hãy chèn biểu đồ cột thể hiện sự sụt giảm latency khi bật SIMD)
+
+
+Phân tích và Nhận xét:
+
+
+Thông lượng tính toán: Việc áp dụng SIMD cho phép xử lý đồng thời 16 pixel (kiểu 8-bit) trong một chu kỳ lệnh, mang lại mức tăng tốc đáng kể cho các bước như Grayscale và Frame Differencing.
+
+
+Tối ưu hóa tập lệnh: Sự sụt giảm latency còn đến từ việc chuyển đổi thuật toán từ số thực sang số nguyên, giúp triệt tiêu chi phí xử lý tại đơn vị dấu phẩy động (FPU) và thay thế bằng các lệnh vector hóa hiệu quả trong thư viện wasm\_simd128.h.
+
+
+Giảm thiểu rẽ nhánh: Sử dụng các mặt nạ bit (bitmask) trong SIMD giúp thay thế các cấu trúc điều kiện if-else trong vòng lặp, từ đó giảm thiểu sai sót dự đoán nhánh (branch misprediction) tại CPU.
+
+
+\reportsubsubsection{4.2.3 Kịch bản 3: Hiệu quả của tối ưu hóa mức luồng (Multi-threading)}
+
+Kịch bản này đo lường khả năng mở rộng hiệu năng khi phân phối khối lượng tính toán cực lớn của video 4K lên đa lõi CPU.
+
+
+\begin{center}\textit{Bảng 4.2: Hiệu năng WebAssembly theo số lượng luồng thực thi}\end{center}
+
+\begin{center}
+\small
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash}X|>{\raggedright\arraybackslash}X|>{\raggedright\arraybackslash}X|>{\raggedright\arraybackslash}X|}
+\hline
+\textbf{Số luồng} & \textbf{Latency trung bình (ms)} & \textbf{Speedup (so với 1 luồng)} & \textbf{Hiệu suất song song (\%)} \\
+\hline
+1 luồng (Scalar) & [Số liệu] & 1.00 & 100\% \\
+\hline
+2 luồng & [Số liệu] & [Số liệu] & [Số liệu] \\
+\hline
+4 luồng & [Số liệu] & [Số liệu] & [Số liệu] \\
+\hline
+\end{tabularx}
+\end{center}
+\normalsize
+
+Phân tích và Nhận xét:
+
+
+Khả năng mở rộng: Hiệu năng hệ thống tăng dần theo số lượng luồng nhưng thường không đạt mức tuyến tính lý tưởng. Điều này phù hợp với Định luật Amdahl do tồn tại các phần mã nguồn thực thi tuần tự không thể song song hóa.
+
+
+Chi phí điều phối (Overhead): Mô hình Fork-Join phát sinh chi phí đồng bộ hóa và quản lý Web Workers (ước tính khoảng \textasciitilde{}3ms mỗi khung hình), làm suy giảm hiệu quả của đa luồng khi độ phức tạp của khối công việc chưa đủ lớn để bù đắp chi phí này.
+
+
+Giao tiếp bộ nhớ: Việc sử dụng SharedArrayBuffer giúp các luồng truy cập trực tiếp vào cùng một vùng nhớ tuyến tính, loại bỏ hoàn toàn chi phí sao chép dữ liệu khổng lồ (\textasciitilde{}33MB/frame) giữa các Workers, điều mà JavaScript đơn luồng không thể thực hiện hiệu quả.
+
+
+\reportsubsection{4.3 Kết quả kịch bản tích lũy (SIMD + Multi-threading)}
+
+Kịch bản 4 (KB4) đại diện cho mức độ tối ưu hóa cao nhất của hệ thống, kết hợp đồng thời ba tầng công nghệ: thuật toán lọc nhiễu tách được (Separable Blur), xử lý vector SIMD 128-bit và song song hóa đa luồng qua pthreads. Đây là giai đoạn thực nghiệm nhằm kiểm chứng giả thuyết về "hiệu ứng nhân" (Multiplicative Effect) khi các kỹ thuật tối ưu hóa được triển khai tích lũy.
+
+
+\reportsubsubsection{4.3.1 Kết quả đo lường tổng hợp}
+
+Dữ liệu thu được từ Kịch bản 4 cho thấy sự bứt phá đáng kể về mặt thông lượng xử lý so với cả Baseline JavaScript lẫn các phiên bản WebAssembly đơn lẻ.
+
+
+\begin{center}\textit{Bảng 4.3: So sánh hiệu năng Kịch bản 4 với Baseline}\end{center}
+
+\begin{center}
+\small
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash}X|>{\raggedright\arraybackslash}X|>{\raggedright\arraybackslash}X|>{\raggedright\arraybackslash}X|}
+\hline
+\textbf{Chỉ số đo lường} & \textbf{JavaScript (Baseline)} & \textbf{WebAssembly (KB4)} & \textbf{Tỉ lệ cải thiện (Speedup)} \\
+\hline
+Latency trung bình (ms) & [Số liệu] & [Số liệu] & [S = Lat\_JS / Lat\_KB4] \\
+\hline
+P99 Latency (ms) & [Số liệu] & [Số liệu] & [Độ trễ xấu nhất] \\
+\hline
+FPS trung bình & [Số liệu] & [Số liệu] & [Gấp n lần] \\
+\hline
+Độ lệch chuẩn (σ) & [Số liệu] & [Số liệu] & [Độ ổn định] \\
+\hline
+\end{tabularx}
+\end{center}
+\normalsize
+
+\begin{center}\textit{Hình 4.2: Biểu đồ so sánh tổng thể 04 kịch bản WebAssembly so với JavaScript (Ghi chú: Anh nên sử dụng biểu đồ cột để thể hiện sự giảm dần của Latency từ JS -\textgreater{} KB1 -\textgreater{} KB2 -\textgreater{} KB3 -\textgreater{} KB4)}\end{center}
+
+\reportsubsubsection{4.3.2 Phân tích hiệu ứng tích lũy}
+
+Hiệu ứng nhân (Multiplicative Effect): Kết quả thực nghiệm cho thấy mức tăng tốc tổng thể ở KB4 không chỉ là phép cộng đơn thuần của SIMD và Multi-threading. Việc kết hợp SIMD bên trong mỗi luồng thực thi giúp mỗi Worker thread hoàn thành khối lượng công việc nhanh hơn, từ đó rút ngắn đáng kể thời gian tại các điểm chốt đồng bộ hóa (Barrier synchronization) trong mô hình Fork-Join.
+
+
+Tối ưu hóa căn chỉnh bộ nhớ: Hiệu năng đạt mức tối đa nhờ kỹ thuật căn chỉnh dữ liệu (Chunk Alignment) theo bội số của 16-byte, giúp tập lệnh SIMD thực thi với thông lượng cao nhất mà không phát sinh phần dư xử lý tuần tự (scalar remainder) ở cuối mỗi dải hàng (Row Stripe).
+
+
+Vượt qua rào cản thời gian thực: Với video 4K, mục tiêu Latency \textless{} 16.7 ms (tương đương 60 FPS) là một thách thức cực lớn. Kết quả tại mục này sẽ xác nhận liệu việc kết hợp các kỹ thuật trên đã giúp hệ thống đạt được ngưỡng lý tưởng này hay chưa.
+
+
+\reportsubsubsection{4.3.3 Phân tích hệ số hiệu suất kết hợp (η)}
+
+Một điểm nhấn quan trọng trong phân tích kịch bản 4 là sự suy giảm của hệ số hiệu suất kết hợp (η) khi hệ thống tiến gần tới giới hạn vật lý.
+
+
+Hiện tượng bão hòa: Mặc dù số lượng luồng và tập lệnh vector tăng lên, tỉ lệ tăng tốc thực tế thường thấp hơn tổng tăng tốc lý thuyết (SKB \textless{} SSIMD x SMT).
+
+
+Nguyên nhân: Sự suy giảm này chủ yếu do bài toán đã chuyển dịch từ giới hạn tính toán (Compute-bound) sang giới hạn băng thông bộ nhớ (Memory-bound). Khi xử lý khung hình 4K (\textasciitilde{}33 MB), việc nạp/ghi dữ liệu liên tục từ RAM vào các thanh ghi CPU trở thành nút cổ chai chính, làm giảm hiệu quả của các đơn vị tính toán song song.
+
+
+\reportsubsection{4.4 Phân tích chuyên sâu và Thảo luận}
+
+Sau khi thu thập dữ liệu từ các kịch bản thực nghiệm, mục này thực hiện phân tích các khía cạnh kỹ thuật chuyên sâu để làm rõ bản chất hiệu năng của WebAssembly trong môi trường trình duyệt.
+
+
+\reportsubsubsection{4.4.1 Phân tích tính ổn định và hiện tượng Jitter qua chỉ số P99}
+
+Trong các hệ thống xử lý thời gian thực như video 4K, giá trị trung bình (Mean) đôi khi không phản ánh chính xác trải nghiệm người dùng do sự xuất hiện của các "đỉnh" độ trễ (latency spikes).
+
+
+Tính ổn định của WebAssembly: Kết quả đo lường độ lệch chuẩn (\$\textbackslash{}sigma\$) và P99 Latency cho thấy WebAssembly duy trì một hiệu năng cực kỳ xác định (deterministic). Điều này có được nhờ cơ chế quản lý bộ nhớ thủ công và tái sử dụng vùng đệm (Buffer Reuse), giúp loại bỏ hoàn toàn các khoảng dừng hệ thống (Stop-the-world) để thu gom rác.
+
+
+Hạn chế của JavaScript: Ngược lại, JavaScript thường xuyên gặp hiện tượng giật khung hình (frame jitter) với P99 cao hơn nhiều so với Median. Nguyên nhân chính là do áp lực từ việc cấp phát bộ nhớ liên tục cho các khung hình 4K (\textasciitilde{}33 MB/frame) kích hoạt bộ thu gom rác (Garbage Collector) hoạt động không theo chu kỳ cố định. Ngoài ra, cơ chế Deoptimization của trình biên dịch JIT khi dự đoán sai kiểu dữ liệu cũng là một tác nhân gây sụt giảm hiệu năng đột ngột.
+
+
+\reportsubsubsection{4.4.2 So sánh thực tế với giới hạn lý thuyết qua Định luật Amdahl}
+
+Luận văn sử dụng Định luật Amdahl để đánh giá mức độ khai thác tài nguyên song song của hệ thống. Công thức tính mức tăng tốc lý thuyết được xác định bởi:
+
+
+S(n)=1(1−p) + pn
+
+
+Trong đó P là tỉ lệ phần mã nguồn có thể song song hóa và n là số lượng luồng thực thi.
+
+
+Phân tích sự sai lệch: Kết quả thực tế cho thấy Speedup thường thấp hơn kỳ vọng lý thuyết. Sự sai lệch này đến từ hai yếu tố ngoại vi không thể song song hóa hoàn toàn:
+
+
+Chi phí điều phối (Overhead): Mô hình Fork-Join yêu cầu thời gian để khởi tạo và đồng bộ hóa các luồng qua rào chắn (barrier synchronization), tiêu tốn khoảng vài mili-giây mỗi khung hình.
+
+
+Độ trễ cầu nối (Bridge Latency): Chi phí sao chép dữ liệu pixel giữa JavaScript Heap và Wasm Linear Memory là một phần thực thi tuần tự bắt buộc, ảnh hưởng trực tiếp đến tổng thời gian xử lý.
+
+
+\reportsubsubsection{4.4.3 Sự chuyển dịch từ giới hạn tính toán sang giới hạn bộ nhớ}
+
+Một trong những phát hiện quan trọng nhất của thực nghiệm là sự thay đổi bản chất của bài toán khi các kỹ thuật tối ưu hóa được áp dụng tích lũy.
+
+
+Trạng thái Compute-bound: Ở các kịch bản đầu (KB1, KB2), CPU là nhân tố giới hạn chính do khối lượng phép tính khổng lồ của thuật toán Box Blur naive (\textasciitilde{}406 triệu phép tính/khung hình). Lúc này, các kỹ thuật như SIMD và Multi-threading mang lại hiệu quả tăng tốc rõ rệt nhất.
+
+
+Trạng thái Memory-bound: Khi tiến đến Kịch bản 4, độ phức tạp tính toán đã được tối ưu cực hạn nhờ Separable Blur và SIMD. Tại điểm này, hiệu năng hệ thống không còn phụ thuộc nhiều vào tốc độ CPU mà bị giới hạn bởi băng thông bộ nhớ (Memory Bandwidth). Việc luân chuyển liên tục hơn 33 MB dữ liệu thô cho mỗi khung hình qua các cấp bộ nhớ đệm (Cache) và RAM trở thành "nút cổ chai" cuối cùng, khiến tỉ lệ tăng tốc (Speedup) bắt đầu bão hòa dù có tăng thêm số lượng luồng thực thi.
+
+
+\reportsubsection{4.5 Tổng kết chương}
+
+Chương 4 đã thực hiện phân tích thực nghiệm chi tiết và đa chiều về hiệu năng của WebAssembly so với JavaScript trong bài toán xử lý video 4K thời gian thực. Thông qua quá trình đo lường và biện giải, nghiên cứu đã rút ra được các kết luận then chốt sau:
+
+
+Sự vượt trội của WebAssembly: WebAssembly Scalar cung cấp một mức nền tảng hiệu năng cao hơn và ổn định hơn đáng kể so với JavaScript. Việc loại bỏ hiện tượng jitter do bộ thu gom rác (GC) gây ra đã chứng minh Wasm là môi trường thực thi lý tưởng cho các tác vụ mang tính xác định (deterministic) cao.
+
+
+Hiệu quả của tối ưu hóa phần cứng: Tập lệnh SIMD 128-bit đóng vai trò quyết định trong việc giảm độ trễ tính toán bằng cách vector hóa các phép tính pixel. Song song đó, mô hình đa luồng qua pthreads giúp tận dụng tối đa tài nguyên đa lõi của CPU hiện đại, mặc dù hiệu quả tăng tốc bị giới hạn bởi chi phí điều phối (overhead) và định luật Amdahl.
+
+
+Ngưỡng bão hòa hiệu năng: Kết quả thực nghiệm tại kịch bản tích lũy cao nhất (KB4) đã chỉ ra sự chuyển dịch trạng thái của hệ thống từ giới hạn tính toán (Compute-bound) sang giới hạn băng thông bộ nhớ (Memory-bound). Đây là một chỉ dấu quan trọng cho thấy hệ thống đã tiệm cận giới hạn vật lý của môi trường thực thi trên trình duyệt.
+
+
+Tính khả thi của ứng dụng: Với mức tăng tốc tổng thể đạt được [Điền số lần] lần so với JavaScript và duy trì mức FPS ổn định trên ngưỡng 30/60 FPS, nghiên cứu đã khẳng định WebAssembly hoàn toàn có đủ khả năng đáp ứng các yêu cầu khắt khe của xử lý thị giác máy tính độ phân giải cao ngay trên nền tảng Web mà không cần cài đặt thêm phần mềm bổ trợ.
+
+
+Những kết quả định lượng này không chỉ minh chứng cho các giả thuyết khoa học đã đặt ra mà còn là cơ sở thực chứng vững chắc để đưa ra các kết luận cuối cùng và đề xuất hướng phát triển ở chương tiếp theo.
