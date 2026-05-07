@@ -1,4 +1,4 @@
-PWD /Users/vohoangquoc/WASM/latex
+PWD /Users/quocvo/WASM/latex
 INPUT /usr/local/texlive/2026basic/texmf.cnf
 INPUT /usr/local/texlive/2026basic/texmf-dist/web2c/texmf.cnf
 INPUT /usr/local/texlive/2026basic/texmf-var/web2c/xetex/xelatex.fmt
@@ -159,7 +159,6 @@ INPUT ./sections/list_of_figures.tex
 INPUT ./sections/list_of_figures.tex
 INPUT ./sections/list_of_figures.tex
 INPUT ./sections/list_of_figures.tex
-INPUT sections/list_of_figures.tex
 INPUT sections/list_of_figures.tex
 INPUT ./sections/abbreviations.tex
 INPUT ./sections/abbreviations.tex
